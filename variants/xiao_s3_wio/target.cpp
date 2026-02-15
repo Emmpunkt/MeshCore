@@ -14,13 +14,20 @@ WRAPPER_CLASS radio_driver(radio, board);
 
 ESP32RTCClock fallback_clock;
 AutoDiscoverRTCClock rtc_clock(fallback_clock);
-EnvironmentSensorManager sensors;
+
 
 #ifdef DISPLAY_CLASS
   DISPLAY_CLASS display;
   MomentaryButton user_btn(PIN_USER_BTN, 1000, true);
 #endif
 
+#if ENV_INCLUDE_GPS
+  #include <helpers/sensors/MicroNMEALocationProvider.h>
+  MicroNMEALocationProvider nmea = MicroNMEALocationProvider(Serial1);
+  EnvironmentSensorManager sensors = EnvironmentSensorManager(nmea);
+#else
+  EnvironmentSensorManager sensors;
+#endif
 bool radio_init() {
   fallback_clock.begin();
   rtc_clock.begin(Wire);
@@ -46,7 +53,7 @@ void radio_set_params(float freq, float bw, uint8_t sf, uint8_t cr) {
   radio.setCodingRate(cr);
 }
 
-void radio_set_tx_power(int8_t dbm) {
+void radio_set_tx_power(uint8_t dbm) {
   radio.setOutputPower(dbm);
 }
 
