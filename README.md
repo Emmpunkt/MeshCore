@@ -1,6 +1,4 @@
-Xiao S3 Wio mit GPS
-&
-AK4631 + RAK14000 + RAK12500
+Xiao S3 Wio mit GPS   &   RAK4631 + RAK14000 + RAK12500
 
 ## Fork Notice (Emmpunkt)
 
