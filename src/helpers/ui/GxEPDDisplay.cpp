@@ -10,28 +10,151 @@
   #define DISPLAY_ROTATION 3
 #endif
 
+#ifdef EINK_INVERT_COLORS
+  #ifdef USE_ADAFRUIT_SSD1680
+    #define EINK_BLACK EPD_WHITE
+    #define EINK_WHITE EPD_BLACK
+  #else
+    #define EINK_BLACK GxEPD_WHITE
+    #define EINK_WHITE GxEPD_BLACK
+  #endif
+#else
+  #ifdef USE_ADAFRUIT_SSD1680
+    #define EINK_BLACK EPD_BLACK
+    #define EINK_WHITE EPD_WHITE
+  #else
+    #define EINK_BLACK GxEPD_BLACK
+    #define EINK_WHITE GxEPD_WHITE
+  #endif
+#endif
+
 #ifdef ESP32
   SPIClass SPI1 = SPIClass(FSPI);
 #endif
 
+#if defined(NRF52_PLATFORM)
+  // SPIM3 is used by the LoRa radio. Use SPIM2 independently for the e-ink display
+  // so the two peripherals never interfere, regardless of radio init order.
+  // Hardcode the WisBlock IO-slot SPI pins (MISO=29, SCK=3, MOSI=30) to avoid
+  // any interference from PIN_SPI_* macro redefinitions.
+  static SPIClass DISPLAY_SPI(NRF_SPIM2, 29, 3, 30);
+#endif
+
 bool GxEPDDisplay::begin() {
+#ifdef EINK_WHITE_SCREEN_TEST
+  Serial.println("GxEPDDisplay::begin: start");
+  Serial.print("  CS="); Serial.print(PIN_DISPLAY_CS);
+  Serial.print(" DC="); Serial.print(PIN_DISPLAY_DC);
+  Serial.print(" RST="); Serial.print(PIN_DISPLAY_RST);
+  Serial.print(" BUSY="); Serial.print(PIN_DISPLAY_BUSY);
+  Serial.print(" PWR="); Serial.println(PIN_DISPLAY_POWER);
+#endif
+
+  if (PIN_DISPLAY_POWER >= 0) {
+    // Follow official RAK14000 behavior: weak pull-up on shared power pin.
+    pinMode(PIN_DISPLAY_POWER, INPUT_PULLUP);
+    digitalWrite(PIN_DISPLAY_POWER, HIGH);
+    delay(300);
+  }
+
+#ifdef EINK_WHITE_SCREEN_TEST
+  if (PIN_DISPLAY_BUSY >= 0) {
+    pinMode(PIN_DISPLAY_BUSY, INPUT);
+    Serial.print("  BUSY before init=");
+    Serial.println(digitalRead(PIN_DISPLAY_BUSY));
+  }
+#endif
+
+#ifdef USE_ADAFRUIT_SSD1680
+  // Adafruit_SSD1680 is instantiated with software SPI pins in this build,
+  // so touching global SPI here can break subsequent radio_init() on nRF52.
+  display.begin();
+  display.setRotation(DISPLAY_ROTATION);
+
+  // Keep startup deterministic: one white full refresh after init.
+  display.clearBuffer();
+  display.fillScreen(EPD_WHITE);
+  display.display(true);
+  delay(180);
+
+#ifdef EINK_FORCE_BOOT_PATTERN
+  // Hardware bring-up check: force a visible black->white refresh sequence.
+  display.clearBuffer();
+  display.fillScreen(EPD_BLACK);
+  display.display();
+  delay(900);
+
+  display.clearBuffer();
+  display.fillScreen(EPD_WHITE);
+  display.display();
+  delay(900);
+#endif
+
+#ifdef EINK_WHITE_SCREEN_TEST
+  if (PIN_DISPLAY_BUSY >= 0) {
+    Serial.print("  BUSY after init=");
+    Serial.println(digitalRead(PIN_DISPLAY_BUSY));
+  }
+#endif
+
+  display.clearBuffer();
+  display.fillScreen(EINK_WHITE);
+  display.display(true);
+#else
+#if defined(NRF52_PLATFORM)
+  // Use the dedicated DISPLAY_SPI instance (SPIM2) — keeps display and LoRa
+  // radio (SPIM3 / SPI) on separate peripherals, so radio_init() cannot
+  // interfere with the display SPI no matter when it is called.
+  DISPLAY_SPI.begin();
+  display.epd2.selectSPI(DISPLAY_SPI, SPISettings(1000000, MSBFIRST, SPI_MODE0));
+#elif defined(ESP32)
   display.epd2.selectSPI(SPI1, SPISettings(4000000, MSBFIRST, SPI_MODE0));
-#ifdef ESP32
   SPI1.begin(PIN_DISPLAY_SCLK, PIN_DISPLAY_MISO, PIN_DISPLAY_MOSI, PIN_DISPLAY_CS);
 #else
-  SPI1.begin();
+  display.epd2.selectSPI(SPI, SPISettings(4000000, MSBFIRST, SPI_MODE0));
+  SPI.begin();
 #endif
-  display.init(115200, true, 2, false);
-  display.setRotation(DISPLAY_ROTATION);
-  setTextSize(1);  // Default to size 1
-  display.setPartialWindow(0, 0, display.width(), display.height());
 
-  display.fillScreen(GxEPD_WHITE);
-  display.display(true);
-  #if DISP_BACKLIGHT
-  digitalWrite(DISP_BACKLIGHT, LOW);
-  pinMode(DISP_BACKLIGHT, OUTPUT);
-  #endif
+  // Minimal init matching standard GxEPD2 examples.
+  display.init(115200, true, 20, false);
+  display.setRotation(DISPLAY_ROTATION);
+
+#ifdef EINK_WHITE_SCREEN_TEST
+  if (PIN_DISPLAY_BUSY >= 0) {
+    Serial.print("  BUSY after init=");
+    Serial.println(digitalRead(PIN_DISPLAY_BUSY));
+  }
+#endif
+
+  // Use firstPage/nextPage to correctly initialize BOTH image buffers (new + old).
+  // Calling display(false) only once leaves the old-image buffer uninitialized,
+  // which causes the panel to flash the old garbage after the refresh cycle ends.
+  display.setFullWindow();
+#ifdef EINK_FORCE_BOOT_PATTERN
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_BLACK);
+  } while (display.nextPage());
+  delay(900);
+#endif
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_WHITE);
+  } while (display.nextPage());
+
+#ifdef EINK_FORCE_BOOT_PATTERN
+  delay(900);
+#endif
+#endif
+
+#ifdef EINK_WHITE_SCREEN_TEST
+  if (PIN_DISPLAY_BUSY >= 0) {
+    Serial.print("  BUSY after full refresh=");
+    Serial.println(digitalRead(PIN_DISPLAY_BUSY));
+  }
+  Serial.println("GxEPDDisplay::begin: EINK_WHITE_SCREEN_TEST - white screen drawn");
+#endif
+
   _init = true;
   return true;
 }
@@ -56,14 +179,25 @@ void GxEPDDisplay::turnOff() {
 }
 
 void GxEPDDisplay::clear() {
-  display.fillScreen(GxEPD_WHITE);
-  display.setTextColor(GxEPD_BLACK);
+  display.fillScreen(EINK_WHITE);
+  display.setTextColor(EINK_BLACK);
   display_crc.reset();
 }
 
 void GxEPDDisplay::startFrame(Color bkg) {
-  display.fillScreen(GxEPD_WHITE);
-  display.setTextColor(_curr_color = GxEPD_BLACK);
+  if (PIN_DISPLAY_POWER >= 0) {
+    pinMode(PIN_DISPLAY_POWER, INPUT_PULLUP);
+    digitalWrite(PIN_DISPLAY_POWER, HIGH);
+  }
+
+  if (bkg == DARK) {
+    display.fillScreen(EINK_BLACK);
+    display.setTextColor(_curr_color = EINK_WHITE);
+  } else {
+    display.fillScreen(EINK_WHITE);
+    display.setTextColor(_curr_color = EINK_BLACK);
+  }
+  display.setTextWrap(false);  // never wrap on e-ink — clipping is handled by drawTextEllipsized
   display_crc.reset();
 }
 
@@ -87,12 +221,8 @@ void GxEPDDisplay::setTextSize(int sz) {
 
 void GxEPDDisplay::setColor(Color c) {
   display_crc.update<Color> (c);
-  // colours need to be inverted for epaper displays
-  if (c == DARK) {
-    display.setTextColor(_curr_color = GxEPD_WHITE);
-  } else {
-    display.setTextColor(_curr_color = GxEPD_BLACK);
-  }
+  _curr_color = (c != DARK) ? EINK_WHITE : EINK_BLACK;
+  display.setTextColor(_curr_color);
 }
 
 void GxEPDDisplay::setCursor(int x, int y) {
@@ -172,8 +302,15 @@ uint16_t GxEPDDisplay::getTextWidth(const char* str) {
 
 void GxEPDDisplay::endFrame() {
   uint32_t crc = display_crc.finalize();
+#ifdef USE_ADAFRUIT_SSD1680
   if (crc != last_display_crc_value) {
     display.display(true);
     last_display_crc_value = crc;
   }
+#else
+  if (crc != last_display_crc_value) {
+    display.display(true);
+    last_display_crc_value = crc;
+  }
+#endif
 }

@@ -49,9 +49,36 @@ public:
       unsigned char c = (unsigned char)src[i];
       if (c >= 32 && c <= 126) {
         dest[j++] = c;  // ASCII printable
+      } else if (j + 2 < dest_size && (c == 0xE4 || c == 0x84)) {
+        dest[j++] = 'a'; dest[j++] = 'e'; // ae (a-umlaut)
+      } else if (j + 2 < dest_size && (c == 0xC4 || c == 0x8E)) {
+        dest[j++] = 'A'; dest[j++] = 'e'; // Ae (A-umlaut)
+      } else if (j + 2 < dest_size && (c == 0xF6 || c == 0x94)) {
+        dest[j++] = 'o'; dest[j++] = 'e'; // oe (o-umlaut)
+      } else if (j + 2 < dest_size && (c == 0xD6 || c == 0x99)) {
+        dest[j++] = 'O'; dest[j++] = 'e'; // Oe (O-umlaut)
+      } else if (j + 2 < dest_size && (c == 0xFC || c == 0x81)) {
+        dest[j++] = 'u'; dest[j++] = 'e'; // ue (u-umlaut)
+      } else if (j + 2 < dest_size && (c == 0xDC || c == 0x9A)) {
+        dest[j++] = 'U'; dest[j++] = 'e'; // Ue (U-umlaut)
+      } else if (j + 2 < dest_size && (c == 0xDF || c == 0xE1)) {
+        dest[j++] = 's'; dest[j++] = 's'; // ss (sharp s)
+      } else if (c == 0xC3 && src[i + 1] != 0) {
+        // Common German umlauts/transforms for displays without UTF-8 glyphs.
+        unsigned char n = (unsigned char)src[i + 1];
+        if (n == 0xA4 && j + 2 < dest_size) { dest[j++] = 'a'; dest[j++] = 'e'; i++; continue; } // ä
+        if (n == 0x84 && j + 2 < dest_size) { dest[j++] = 'A'; dest[j++] = 'e'; i++; continue; } // Ä
+        if (n == 0xB6 && j + 2 < dest_size) { dest[j++] = 'o'; dest[j++] = 'e'; i++; continue; } // ö
+        if (n == 0x96 && j + 2 < dest_size) { dest[j++] = 'O'; dest[j++] = 'e'; i++; continue; } // Ö
+        if (n == 0xBC && j + 2 < dest_size) { dest[j++] = 'u'; dest[j++] = 'e'; i++; continue; } // ü
+        if (n == 0x9C && j + 2 < dest_size) { dest[j++] = 'U'; dest[j++] = 'e'; i++; continue; } // Ü
+        if (n == 0x9F && j + 2 < dest_size) { dest[j++] = 's'; dest[j++] = 's'; i++; continue; } // ß
+
+        dest[j++] = '?';
+        i++; // consumed 2-byte sequence
       } else if (c >= 0x80) {
-        dest[j++] = '\xDB';  // CP437 full block █
-        while (src[i+1] && (src[i+1] & 0xC0) == 0x80) 
+        dest[j++] = '?';
+        while (src[i + 1] && ((unsigned char)src[i + 1] & 0xC0) == 0x80)
           i++;  // skip UTF-8 continuation bytes
       }
     }
@@ -95,6 +122,6 @@ public:
     setCursor(x, y);
     print(temp_str);
   }
-  
+
   virtual void endFrame() = 0;
 };

@@ -3,12 +3,17 @@
 #include <SPI.h>
 #include <Wire.h>
 
+#ifdef USE_ADAFRUIT_SSD1680
+  #include <Adafruit_EPD.h>
+#else
 #define ENABLE_GxEPD2_GFX 0
 
 #include <GxEPD2_BW.h>
 #include <GxEPD2_3C.h>
 #include <GxEPD2_4C.h>
 #include <GxEPD2_7C.h>
+#endif
+
 #include <Fonts/FreeSans9pt7b.h>
 #include <Fonts/FreeSansBold12pt7b.h>
 #include <Fonts/FreeSans18pt7b.h>
@@ -16,9 +21,38 @@
 
 #include "DisplayDriver.h"
 
+#ifndef DISPLAY_ROTATION
+  #define DISPLAY_ROTATION 3
+#endif
+
+#ifdef USE_ADAFRUIT_SSD1680
+  // Adafruit_GFX reports landscape geometry for rotations 0 and 2.
+  #if (DISPLAY_ROTATION == 0) || (DISPLAY_ROTATION == 2)
+    #define EINK_UI_WIDTH 250
+    #define EINK_UI_HEIGHT 122
+  #else
+    #define EINK_UI_WIDTH 122
+    #define EINK_UI_HEIGHT 250
+  #endif
+#else
+  #if (DISPLAY_ROTATION == 1) || (DISPLAY_ROTATION == 3)
+    #define EINK_UI_WIDTH 250
+    #define EINK_UI_HEIGHT 122
+  #else
+    #define EINK_UI_WIDTH 122
+    #define EINK_UI_HEIGHT 250
+  #endif
+#endif
+
 class GxEPDDisplay : public DisplayDriver {
 
-#if defined(EINK_DISPLAY_MODEL)
+#ifdef USE_ADAFRUIT_SSD1680
+  Adafruit_SSD1680 display;
+  const float scale_x  = EINK_SCALE_X;
+  const float scale_y  = EINK_SCALE_Y;
+  const float offset_x = EINK_X_OFFSET;
+  const float offset_y = EINK_Y_OFFSET;
+#elif defined(EINK_DISPLAY_MODEL)
   GxEPD2_BW<EINK_DISPLAY_MODEL, EINK_DISPLAY_MODEL::HEIGHT> display;
   const float scale_x  = EINK_SCALE_X; 
   const float scale_y  = EINK_SCALE_Y;
@@ -38,8 +72,10 @@ class GxEPDDisplay : public DisplayDriver {
   int last_display_crc_value = 0;
 
 public:
-#if defined(EINK_DISPLAY_MODEL)
-  GxEPDDisplay() : DisplayDriver(128, 128), display(EINK_DISPLAY_MODEL(PIN_DISPLAY_CS, PIN_DISPLAY_DC, PIN_DISPLAY_RST, PIN_DISPLAY_BUSY)) {}
+#ifdef USE_ADAFRUIT_SSD1680
+  GxEPDDisplay() : DisplayDriver(EINK_UI_WIDTH, EINK_UI_HEIGHT), display(250, 122, PIN_SPI_MOSI, PIN_SPI_SCK, PIN_DISPLAY_DC, PIN_DISPLAY_RST, PIN_DISPLAY_CS, -1, -1, PIN_DISPLAY_BUSY) {}
+#elif defined(EINK_DISPLAY_MODEL)
+  GxEPDDisplay() : DisplayDriver(EINK_UI_WIDTH, EINK_UI_HEIGHT), display(EINK_DISPLAY_MODEL(PIN_DISPLAY_CS, PIN_DISPLAY_DC, PIN_DISPLAY_RST, PIN_DISPLAY_BUSY)) {}
 #else
   GxEPDDisplay() : DisplayDriver(128, 128), display(GxEPD2_150_BN(DISP_CS, DISP_DC, DISP_RST, DISP_BUSY)) {}
 #endif

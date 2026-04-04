@@ -18,6 +18,7 @@ public:
     _serial = &serial; 
   #ifdef RAK_4631
     pinMode(WB_IO2, OUTPUT);
+    digitalWrite(WB_IO2, HIGH);
   #endif  
   }
 

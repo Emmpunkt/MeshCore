@@ -23,12 +23,14 @@
 #define BLE_RX_DRAIN_BUF_SIZE      32
 
 static SerialBLEInterface* instance = nullptr;
+bool ble_connected = false;
 
 void SerialBLEInterface::onConnect(uint16_t connection_handle) {
   BLE_DEBUG_PRINTLN("SerialBLEInterface: connected handle=0x%04X", connection_handle);
   if (instance) {
     instance->_conn_handle = connection_handle;
     instance->_isDeviceConnected = false;
+    ble_connected = false;
     instance->clearBuffers();
   }
 }
@@ -39,6 +41,7 @@ void SerialBLEInterface::onDisconnect(uint16_t connection_handle, uint8_t reason
     if (instance->_conn_handle == connection_handle) {
       instance->_conn_handle = BLE_CONN_HANDLE_INVALID;
       instance->_isDeviceConnected = false;
+      ble_connected = false;
       instance->clearBuffers();
     }
   }
@@ -49,6 +52,7 @@ void SerialBLEInterface::onSecured(uint16_t connection_handle) {
   if (instance) {
     if (instance->isValidConnection(connection_handle, true)) {
       instance->_isDeviceConnected = true;
+      ble_connected = true;
       
       // Connection interval units: 1.25ms, supervision timeout units: 10ms
       // Apple: "The product will not read or use the parameters in the Peripheral Preferred Connection Parameters characteristic."

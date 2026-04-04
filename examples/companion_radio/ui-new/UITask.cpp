@@ -9,7 +9,7 @@
 #ifndef AUTO_OFF_MILLIS
   #define AUTO_OFF_MILLIS     15000   // 15 seconds
 #endif
-#define BOOT_SCREEN_MILLIS   3000   // 3 seconds
+#define BOOT_SCREEN_MILLIS   8000   // 8 seconds
 
 #ifdef PIN_STATUS_LED
 #define LED_ON_MILLIS     20
@@ -31,13 +31,23 @@
 
 #include "icons.h"
 
+namespace {
+constexpr int UI_TOP_SAFE_Y = 14;
+constexpr int UI_CONTENT_TOP_Y = 34;
+constexpr int UI_ICON_TOP_Y = 30;
+constexpr int UI_BOTTOM_TEXT_Y = 86;
+constexpr int UI_BATTERY_Y = 2;
+constexpr int UI_INFO_ROW_STEP = 16;
+}
+
 class SplashScreen : public UIScreen {
   UITask* _task;
   unsigned long dismiss_after;
+  bool dismiss_started;
   char _version_info[12];
 
 public:
-  SplashScreen(UITask* task) : _task(task) {
+  SplashScreen(UITask* task) : _task(task), dismiss_after(0), dismiss_started(false) {
     // strip off dash and commit hash by changing dash to null terminator
     // e.g: v1.2.3-abcdef -> v1.2.3
     const char *ver = FIRMWARE_VERSION;
@@ -48,28 +58,32 @@ public:
     memcpy(_version_info, ver, len);
     _version_info[len] = 0;
 
-    dismiss_after = millis() + BOOT_SCREEN_MILLIS;
   }
 
   int render(DisplayDriver& display) override {
-    // meshcore logo
+    if (!dismiss_started) {
+      dismiss_after = millis() + BOOT_SCREEN_MILLIS;
+      dismiss_started = true;
+    }
+
+    // Text-only splash avoids XBM distortion artifacts on e-ink.
     display.setColor(DisplayDriver::BLUE);
-    int logoWidth = 128;
-    display.drawXbm((display.width() - logoWidth) / 2, 3, meshcore_logo, logoWidth, 13);
+    display.setTextSize(2);
+    display.drawTextCentered(display.width()/2, 18, "MeshCore");
 
     // version info
     display.setColor(DisplayDriver::LIGHT);
     display.setTextSize(2);
-    display.drawTextCentered(display.width()/2, 22, _version_info);
+    display.drawTextCentered(display.width()/2, 48, _version_info);
 
     display.setTextSize(1);
-    display.drawTextCentered(display.width()/2, 42, FIRMWARE_BUILD_DATE);
+    display.drawTextCentered(display.width()/2, 72, FIRMWARE_BUILD_DATE);
 
     return 1000;
   }
 
   void poll() override {
-    if (millis() >= dismiss_after) {
+    if (dismiss_started && millis() >= dismiss_after) {
       _task->gotoHomeScreen();
     }
   }
@@ -99,10 +113,13 @@ class HomeScreen : public UIScreen {
   uint8_t _page;
   bool _shutdown_init;
   AdvertPath recent[UI_RECENT_LIST_SIZE];
-
+  CayenneLPP sensors_lpp;
+  int sensors_nb;
+  bool sensors_scroll;
+  int sensors_scroll_offset;
+  int next_sensors_refresh;
 
   void renderBatteryIndicator(DisplayDriver& display, uint16_t batteryMilliVolts) {
-    // Convert millivolts to percentage
 #ifndef BATT_MIN_MILLIVOLTS
   #define BATT_MIN_MILLIVOLTS 3000
 #endif
@@ -112,27 +129,21 @@ class HomeScreen : public UIScreen {
     const int minMilliVolts = BATT_MIN_MILLIVOLTS;
     const int maxMilliVolts = BATT_MAX_MILLIVOLTS;
     int batteryPercentage = ((batteryMilliVolts - minMilliVolts) * 100) / (maxMilliVolts - minMilliVolts);
-    if (batteryPercentage < 0) batteryPercentage = 0; // Clamp to 0%
-    if (batteryPercentage > 100) batteryPercentage = 100; // Clamp to 100%
+    if (batteryPercentage < 0) batteryPercentage = 0;
+    if (batteryPercentage > 100) batteryPercentage = 100;
+    batteryPercentage = (batteryPercentage / 10) * 10;
 
-    // battery icon
-    int iconWidth = 24;
-    int iconHeight = 10;
-    int iconX = display.width() - iconWidth - 5; // Position the icon near the top-right corner
-    int iconY = 0;
+    const int iconWidth = 24;
+    const int iconHeight = 10;
+    const int iconX = display.width() - iconWidth - 5;
+    const int iconY = UI_BATTERY_Y;
+    const int fillWidth = (batteryPercentage * (iconWidth - 4)) / 100;
+
     display.setColor(DisplayDriver::GREEN);
-
-    // battery outline
     display.drawRect(iconX, iconY, iconWidth, iconHeight);
-
-    // battery "cap"
     display.fillRect(iconX + iconWidth, iconY + (iconHeight / 4), 3, iconHeight / 2);
-
-    // fill the battery based on the percentage
-    int fillWidth = (batteryPercentage * (iconWidth - 4)) / 100;
     display.fillRect(iconX + 2, iconY + 2, fillWidth, iconHeight - 4);
 
-    // show muted icon if buzzer is muted
 #ifdef PIN_BUZZER
     if (_task->isBuzzerQuiet()) {
       display.setColor(DisplayDriver::RED);
@@ -141,110 +152,108 @@ class HomeScreen : public UIScreen {
 #endif
   }
 
-  CayenneLPP sensors_lpp;
-  int sensors_nb = 0;
-  bool sensors_scroll = false;
-  int sensors_scroll_offset = 0;
-  int next_sensors_refresh = 0;
-  
   void refresh_sensors() {
-    if (millis() > next_sensors_refresh) {
-      sensors_lpp.reset();
-      sensors_nb = 0;
-      sensors_lpp.addVoltage(TELEM_CHANNEL_SELF, (float)board.getBattMilliVolts() / 1000.0f);
-      sensors.querySensors(0xFF, sensors_lpp);
-      LPPReader reader (sensors_lpp.getBuffer(), sensors_lpp.getSize());
-      uint8_t channel, type;
-      while(reader.readHeader(channel, type)) {
-        reader.skipData(type);
-        sensors_nb ++;
-      }
-      sensors_scroll = sensors_nb > UI_RECENT_LIST_SIZE;
-#if AUTO_OFF_MILLIS > 0
-      next_sensors_refresh = millis() + 5000; // refresh sensor values every 5 sec
-#else
-      next_sensors_refresh = millis() + 60000; // refresh sensor values every 1 min
-#endif
+    if (millis() <= next_sensors_refresh) {
+      return;
     }
+
+    sensors_lpp.reset();
+    sensors_nb = 0;
+    sensors_lpp.addVoltage(TELEM_CHANNEL_SELF, (float)_task->getBattMilliVolts() / 1000.0f);
+    if (_sensors != NULL) {
+      _sensors->querySensors(0xFF, sensors_lpp);
+    }
+
+    LPPReader reader(sensors_lpp.getBuffer(), sensors_lpp.getSize());
+    uint8_t channel, type;
+    while (reader.readHeader(channel, type)) {
+      reader.skipData(type);
+      sensors_nb++;
+    }
+
+    sensors_scroll = sensors_nb > UI_RECENT_LIST_SIZE;
+#if AUTO_OFF_MILLIS > 0
+    next_sensors_refresh = millis() + 5000;
+#else
+    next_sensors_refresh = millis() + 60000;
+#endif
   }
 
 public:
   HomeScreen(UITask* task, mesh::RTCClock* rtc, SensorManager* sensors, NodePrefs* node_prefs)
-     : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0), 
-       _shutdown_init(false), sensors_lpp(200) {  }
+      : _task(task),
+        _rtc(rtc),
+        _sensors(sensors),
+        _node_prefs(node_prefs),
+        _page(0),
+        _shutdown_init(false),
+        sensors_lpp(200),
+        sensors_nb(0),
+        sensors_scroll(false),
+        sensors_scroll_offset(0),
+        next_sensors_refresh(0) {}
 
   void poll() override {
-    if (_shutdown_init && !_task->isButtonPressed()) {  // must wait for USR button to be released
+    if (_shutdown_init && !_task->isButtonPressed()) {
       _task->shutdown();
     }
   }
 
   int render(DisplayDriver& display) override {
     char tmp[80];
-    // node name
+
     display.setTextSize(1);
     display.setColor(DisplayDriver::GREEN);
+
     char filtered_name[sizeof(_node_prefs->node_name)];
     display.translateUTF8ToBlocks(filtered_name, _node_prefs->node_name, sizeof(filtered_name));
-    display.setCursor(0, 0);
+    display.setCursor(0, UI_TOP_SAFE_Y);
     display.print(filtered_name);
 
-    // battery voltage
     renderBatteryIndicator(display, _task->getBattMilliVolts());
-
-    // curr page indicator
-    int y = 14;
-    int x = display.width() / 2 - 5 * (HomePage::Count-1);
-    for (uint8_t i = 0; i < HomePage::Count; i++, x += 10) {
-      if (i == _page) {
-        display.fillRect(x-1, y-1, 3, 3);
-      } else {
-        display.fillRect(x, y, 1, 1);
-      }
-    }
 
     if (_page == HomePage::FIRST) {
       display.setColor(DisplayDriver::YELLOW);
       display.setTextSize(2);
       sprintf(tmp, "MSG: %d", _task->getMsgCount());
-      display.drawTextCentered(display.width() / 2, 20, tmp);
+      display.drawTextCentered(display.width() / 2, UI_CONTENT_TOP_Y + 12, tmp);
 
-      #ifdef WIFI_SSID
-        IPAddress ip = WiFi.localIP();
-        snprintf(tmp, sizeof(tmp), "IP: %d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-        display.setTextSize(1);
-        display.drawTextCentered(display.width() / 2, 54, tmp); 
-      #endif
+#ifdef WIFI_SSID
+      IPAddress ip = WiFi.localIP();
+      snprintf(tmp, sizeof(tmp), "IP: %d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+      display.setTextSize(1);
+      display.drawTextCentered(display.width() / 2, UI_CONTENT_TOP_Y + 35, tmp);
+#endif
+
       if (_task->hasConnection()) {
         display.setColor(DisplayDriver::GREEN);
         display.setTextSize(1);
-        display.drawTextCentered(display.width() / 2, 43, "< Connected >");
-
-      } else if (the_mesh.getBLEPin() != 0) { // BT pin
+        display.drawTextCentered(display.width() / 2, UI_BOTTOM_TEXT_Y, "< Connected >");
+      } else if (the_mesh.getBLEPin() != 0) {
         display.setColor(DisplayDriver::RED);
-        display.setTextSize(2);
+        display.setTextSize(1);
         sprintf(tmp, "Pin:%d", the_mesh.getBLEPin());
-        display.drawTextCentered(display.width() / 2, 43, tmp);
+        display.drawTextCentered(display.width() / 2, UI_BOTTOM_TEXT_Y, tmp);
       }
     } else if (_page == HomePage::RECENT) {
       the_mesh.getRecentlyHeard(recent, UI_RECENT_LIST_SIZE);
       display.setColor(DisplayDriver::GREEN);
-      int y = 20;
-      for (int i = 0; i < UI_RECENT_LIST_SIZE; i++, y += 11) {
+      int y = UI_CONTENT_TOP_Y;
+      for (int i = 0; i < UI_RECENT_LIST_SIZE; i++, y += UI_INFO_ROW_STEP) {
         auto a = &recent[i];
-        if (a->name[0] == 0) continue;  // empty slot
+        if (a->name[0] == 0) continue;
+
         int secs = _rtc->getCurrentTime() - a->recv_timestamp;
         if (secs < 60) {
           sprintf(tmp, "%ds", secs);
-        } else if (secs < 60*60) {
+        } else if (secs < 60 * 60) {
           sprintf(tmp, "%dm", secs / 60);
         } else {
-          sprintf(tmp, "%dh", secs / (60*60));
+          sprintf(tmp, "%dh", secs / (60 * 60));
         }
-        
+
         int timestamp_width = display.getTextWidth(tmp);
-        int max_name_width = display.width() - timestamp_width - 1;
-        
+        int max_name_width = display.width() - timestamp_width - 4;
         char filtered_recent_name[sizeof(a->name)];
         display.translateUTF8ToBlocks(filtered_recent_name, a->name, sizeof(filtered_recent_name));
         display.drawTextEllipsized(0, y, max_name_width, filtered_recent_name);
@@ -254,38 +263,42 @@ public:
     } else if (_page == HomePage::RADIO) {
       display.setColor(DisplayDriver::YELLOW);
       display.setTextSize(1);
-      // freq / sf
-      display.setCursor(0, 20);
-      sprintf(tmp, "FQ: %06.3f   SF: %d", _node_prefs->freq, _node_prefs->sf);
-      display.print(tmp);
+      int y = UI_CONTENT_TOP_Y;
 
-      display.setCursor(0, 31);
-      sprintf(tmp, "BW: %03.2f     CR: %d", _node_prefs->bw, _node_prefs->cr);
-      display.print(tmp);
+      display.drawTextLeftAlign(0, y, "Freq");
+      snprintf(tmp, sizeof(tmp), "%06.3f MHz", _node_prefs->freq);
+      display.drawTextRightAlign(display.width() - 1, y, tmp);
+      y += UI_INFO_ROW_STEP;
 
-      // tx power,  noise floor
-      display.setCursor(0, 42);
-      sprintf(tmp, "TX: %ddBm", _node_prefs->tx_power_dbm);
-      display.print(tmp);
-      display.setCursor(0, 53);
-      sprintf(tmp, "Noise floor: %d", radio_driver.getNoiseFloor());
-      display.print(tmp);
+      display.drawTextLeftAlign(0, y, "SF / BW");
+      snprintf(tmp, sizeof(tmp), "%d / %03.2f", _node_prefs->sf, _node_prefs->bw);
+      display.drawTextRightAlign(display.width() - 1, y, tmp);
+      y += UI_INFO_ROW_STEP;
+
+      display.drawTextLeftAlign(0, y, "CR / TX");
+      snprintf(tmp, sizeof(tmp), "%d / %ddBm", _node_prefs->cr, _node_prefs->tx_power_dbm);
+      display.drawTextRightAlign(display.width() - 1, y, tmp);
+      y += UI_INFO_ROW_STEP;
+
+      display.drawTextLeftAlign(0, y, "Noise");
+      snprintf(tmp, sizeof(tmp), "%d dBm", radio_driver.getNoiseFloor());
+      display.drawTextRightAlign(display.width() - 1, y, tmp);
     } else if (_page == HomePage::BLUETOOTH) {
       display.setColor(DisplayDriver::GREEN);
-      display.drawXbm((display.width() - 32) / 2, 18,
+      display.drawXbm((display.width() - 32) / 2, UI_ICON_TOP_Y,
           _task->isSerialEnabled() ? bluetooth_on : bluetooth_off,
           32, 32);
       display.setTextSize(1);
-      display.drawTextCentered(display.width() / 2, 64 - 11, "toggle: " PRESS_LABEL);
+      display.drawTextCentered(display.width() / 2, UI_BOTTOM_TEXT_Y, "toggle: " PRESS_LABEL);
     } else if (_page == HomePage::ADVERT) {
       display.setColor(DisplayDriver::GREEN);
-      display.drawXbm((display.width() - 32) / 2, 18, advert_icon, 32, 32);
-      display.drawTextCentered(display.width() / 2, 64 - 11, "advert: " PRESS_LABEL);
+      display.drawXbm((display.width() - 32) / 2, UI_ICON_TOP_Y, advert_icon, 32, 32);
+      display.drawTextCentered(display.width() / 2, UI_BOTTOM_TEXT_Y, "advert: " PRESS_LABEL);
 #if ENV_INCLUDE_GPS == 1
     } else if (_page == HomePage::GPS) {
       LocationProvider* nmea = sensors.getLocationProvider();
       char buf[50];
-      int y = 18;
+      int y = UI_CONTENT_TOP_Y;
       bool gps_state = _task->getGPSState();
 #ifdef PIN_GPS_SWITCH
       bool hw_gps_state = digitalRead(PIN_GPS_SWITCH);
@@ -297,32 +310,37 @@ public:
 #else
       strcpy(buf, gps_state ? "gps on" : "gps off");
 #endif
-      display.drawTextLeftAlign(0, y, buf);
+      display.drawTextLeftAlign(0, y, "State");
+      display.drawTextRightAlign(display.width() - 1, y, buf);
+      y += UI_INFO_ROW_STEP;
+
       if (nmea == NULL) {
-        y = y + 12;
-        display.drawTextLeftAlign(0, y, "Can't access GPS");
+        display.drawTextLeftAlign(0, y, "GPS");
+        display.drawTextRightAlign(display.width() - 1, y, "unavailable");
       } else {
-        strcpy(buf, nmea->isValid()?"fix":"no fix");
-        display.drawTextRightAlign(display.width()-1, y, buf);
-        y = y + 12;
-        display.drawTextLeftAlign(0, y, "sat");
-        sprintf(buf, "%d", nmea->satellitesCount());
-        display.drawTextRightAlign(display.width()-1, y, buf);
-        y = y + 12;
-        display.drawTextLeftAlign(0, y, "pos");
-        sprintf(buf, "%.4f %.4f", 
-          nmea->getLatitude()/1000000., nmea->getLongitude()/1000000.);
-        display.drawTextRightAlign(display.width()-1, y, buf);
-        y = y + 12;
-        display.drawTextLeftAlign(0, y, "alt");
-        sprintf(buf, "%.2f", nmea->getAltitude()/1000.);
-        display.drawTextRightAlign(display.width()-1, y, buf);
-        y = y + 12;
+        display.drawTextLeftAlign(0, y, "Fix");
+        display.drawTextRightAlign(display.width() - 1, y, nmea->isValid() ? "valid" : "no fix");
+        y += UI_INFO_ROW_STEP;
+
+        display.drawTextLeftAlign(0, y, "Sat");
+        snprintf(buf, sizeof(buf), "%d", nmea->satellitesCount());
+        display.drawTextRightAlign(display.width() - 1, y, buf);
+        y += UI_INFO_ROW_STEP;
+
+        display.drawTextLeftAlign(0, y, "Lat/Lon");
+        snprintf(buf, sizeof(buf), "%.3f %.3f",
+          nmea->getLatitude() / 1000000., nmea->getLongitude() / 1000000.);
+        display.drawTextRightAlign(display.width() - 1, y, buf);
+        y += UI_INFO_ROW_STEP;
+
+        display.drawTextLeftAlign(0, y, "Alt");
+        snprintf(buf, sizeof(buf), "%.1f m", nmea->getAltitude() / 1000.0);
+        display.drawTextRightAlign(display.width() - 1, y, buf);
       }
 #endif
 #if UI_SENSORS_PAGE == 1
     } else if (_page == HomePage::SENSORS) {
-      int y = 18;
+  int y = UI_CONTENT_TOP_Y;
       refresh_sensors();
       char buf[30];
       char name[30];
@@ -396,13 +414,17 @@ public:
       display.setColor(DisplayDriver::GREEN);
       display.setTextSize(1);
       if (_shutdown_init) {
-        display.drawTextCentered(display.width() / 2, 34, "hibernating...");
+          display.drawTextCentered(display.width() / 2, UI_CONTENT_TOP_Y + 18, "hibernating...");
       } else {
-        display.drawXbm((display.width() - 32) / 2, 18, power_icon, 32, 32);
-        display.drawTextCentered(display.width() / 2, 64 - 11, "hibernate:" PRESS_LABEL);
+          display.drawXbm((display.width() - 32) / 2, UI_ICON_TOP_Y, power_icon, 32, 32);
+          display.drawTextCentered(display.width() / 2, UI_BOTTOM_TEXT_Y, "hibernate:" PRESS_LABEL);
       }
     }
+  #ifdef USE_GX_EPD_DISPLAY
+    return 30000;  // E-ink should not refresh often if nothing meaningful changed.
+  #else
     return 5000;   // next render after 5000 ms
+  #endif
   }
 
   bool handleInput(char c) override {
@@ -413,7 +435,7 @@ public:
     if (c == KEY_NEXT || c == KEY_RIGHT) {
       _page = (_page + 1) % HomePage::Count;
       if (_page == HomePage::RECENT) {
-        _task->showAlert("Recent adverts", 800);
+        // No popup on e-ink — page title is implicit
       }
       return true;
     }
@@ -487,35 +509,37 @@ public:
   }
 
   int render(DisplayDriver& display) override {
+    auto p = &unread[head];
     char tmp[16];
-    display.setCursor(0, 0);
+
     display.setTextSize(1);
+
+    // Draw status line lower to avoid clipped/ghosted pixels near top edge.
+    display.setColor(DisplayDriver::DARK);
+    display.fillRect(0, 0, display.width(), 30);
+
     display.setColor(DisplayDriver::GREEN);
     sprintf(tmp, "Unread: %d", num_unread);
+    display.setCursor(0, 18);
     display.print(tmp);
-
-    auto p = &unread[head];
 
     int secs = _rtc->getCurrentTime() - p->timestamp;
     if (secs < 60) {
       sprintf(tmp, "%ds", secs);
-    } else if (secs < 60*60) {
+    } else if (secs < 60 * 60) {
       sprintf(tmp, "%dm", secs / 60);
     } else {
-      sprintf(tmp, "%dh", secs / (60*60));
+      sprintf(tmp, "%dh", secs / (60 * 60));
     }
-    display.setCursor(display.width() - display.getTextWidth(tmp) - 2, 0);
+    display.setCursor(display.width() - display.getTextWidth(tmp) - 2, 18);
     display.print(tmp);
 
-    display.drawRect(0, 11, display.width(), 1);  // horiz line
-
-    display.setCursor(0, 14);
     display.setColor(DisplayDriver::YELLOW);
     char filtered_origin[sizeof(p->origin)];
     display.translateUTF8ToBlocks(filtered_origin, p->origin, sizeof(filtered_origin));
-    display.print(filtered_origin);
+    display.drawTextEllipsized(0, 42, display.width(), filtered_origin);
 
-    display.setCursor(0, 25);
+    display.setCursor(0, 58);
     display.setColor(DisplayDriver::LIGHT);
     char filtered_msg[sizeof(p->msg)];
     display.translateUTF8ToBlocks(filtered_msg, p->msg, sizeof(filtered_msg));
@@ -557,6 +581,11 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 #if defined(PIN_USER_BTN_ANA)
   analog_btn.begin();
 #endif
+#if defined(PIN_BUTTON_LEFT) && defined(PIN_BUTTON_CENTER) && defined(PIN_BUTTON_RIGHT)
+  btn_left.begin();
+  btn_center.begin();
+  btn_right.begin();
+#endif
 
   _node_prefs = node_prefs;
 
@@ -592,6 +621,7 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   home = new HomeScreen(this, &rtc_clock, sensors, node_prefs);
   msg_preview = new MsgPreviewScreen(this, &rtc_clock);
   setCurrScreen(splash);
+  _next_refresh = 0;
 }
 
 void UITask::showAlert(const char* text, int duration_millis) {
@@ -632,7 +662,10 @@ switch(t){
 void UITask::msgRead(int msgcount) {
   _msgcount = msgcount;
   if (msgcount == 0) {
-    gotoHomeScreen();
+    // Keep splash visible for a minimum window after boot.
+    if (curr != splash && (millis() - ui_started_at) > BOOT_SCREEN_MILLIS) {
+      gotoHomeScreen();
+    }
   }
 }
 
@@ -675,6 +708,11 @@ void UITask::userLedHandler() {
 }
 
 void UITask::setCurrScreen(UIScreen* c) {
+  if (splash != NULL && curr == splash && c != splash) {
+    if ((millis() - ui_started_at) < BOOT_SCREEN_MILLIS) {
+      return;
+    }
+  }
   curr = c;
   _next_refresh = 100;
 }
@@ -707,7 +745,9 @@ void UITask::shutdown(bool restart){
 }
 
 bool UITask::isButtonPressed() const {
-#ifdef PIN_USER_BTN
+#if defined(PIN_BUTTON_LEFT) && defined(PIN_BUTTON_CENTER) && defined(PIN_BUTTON_RIGHT)
+  return btn_center.isPressed() || btn_left.isPressed() || btn_right.isPressed();
+#elif defined(PIN_USER_BTN)
   return user_btn.isPressed();
 #else
   return false;
@@ -716,7 +756,61 @@ bool UITask::isButtonPressed() const {
 
 void UITask::loop() {
   char c = 0;
-#if UI_HAS_JOYSTICK
+#if defined(PIN_BUTTON_LEFT) && defined(PIN_BUTTON_CENTER) && defined(PIN_BUTTON_RIGHT)
+  // Direct 3-button navigation: Left (back), Center (enter), Right (forward).
+  static int center_idle_level = -1;
+  static unsigned long center_down_at = 0;
+  static bool center_long_sent = false;
+
+  int ev = btn_center.check();
+  if (ev == BUTTON_EVENT_CLICK) {
+    c = checkDisplayOn(KEY_ENTER);
+  } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+    c = handleLongPress(KEY_ENTER);
+  }
+
+  // Extra fallback for boards where button polarity/pull differs from MomentaryButton setup.
+  if (c == 0) {
+    int level = digitalRead(PIN_BUTTON_CENTER);
+    if (center_idle_level < 0) {
+      center_idle_level = level;
+    }
+    bool center_pressed = (level != center_idle_level);
+    if (center_pressed) {
+      if (center_down_at == 0) {
+        center_down_at = millis();
+      }
+      if (!center_long_sent && (unsigned long)(millis() - center_down_at) >= 700) {
+        c = handleLongPress(KEY_ENTER);
+        center_long_sent = true;
+      }
+    } else {
+      if (!center_long_sent && center_down_at != 0) {
+        c = checkDisplayOn(KEY_ENTER);
+      }
+      center_down_at = 0;
+      center_long_sent = false;
+    }
+  }
+
+  if (c == 0) {
+    ev = btn_left.check();
+    if (ev == BUTTON_EVENT_CLICK) {
+      c = checkDisplayOn(KEY_LEFT);
+    } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+      c = handleLongPress(KEY_ENTER);
+    }
+  }
+
+  if (c == 0) {
+    ev = btn_right.check();
+    if (ev == BUTTON_EVENT_CLICK) {
+      c = checkDisplayOn(KEY_RIGHT);
+    } else if (ev == BUTTON_EVENT_LONG_PRESS) {
+      c = handleLongPress(KEY_ENTER);
+    }
+  }
+#elif UI_HAS_JOYSTICK
   int ev = user_btn.check();
   if (ev == BUTTON_EVENT_CLICK) {
     c = checkDisplayOn(KEY_ENTER);
@@ -751,9 +845,9 @@ void UITask::loop() {
     c = handleTripleClick(KEY_SELECT);
   }
 #endif
-#if defined(PIN_USER_BTN_ANA)
+#if defined(PIN_USER_BTN_ANA) && !(defined(PIN_BUTTON_LEFT) && defined(PIN_BUTTON_CENTER) && defined(PIN_BUTTON_RIGHT))
   if (abs(millis() - _analogue_pin_read_millis) > 10) {
-    ev = analog_btn.check();
+    int ev = analog_btn.check();
     if (ev == BUTTON_EVENT_CLICK) {
       c = checkDisplayOn(KEY_NEXT);
     } else if (ev == BUTTON_EVENT_LONG_PRESS) {
@@ -763,6 +857,39 @@ void UITask::loop() {
     } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
       c = handleTripleClick(KEY_SELECT);
     }
+    _analogue_pin_read_millis = millis();
+  }
+#endif
+#if defined(PIN_USER_BTN_ANA) && defined(PIN_BUTTON_LEFT) && defined(PIN_BUTTON_CENTER) && defined(PIN_BUTTON_RIGHT)
+  if (c == 0 && abs(millis() - _analogue_pin_read_millis) > 10) {
+    // On some RAK14000 stacks the middle key is routed via analog ladder.
+    // Detect press by deviation from startup idle value rather than fixed threshold.
+    static int ana_idle = -1;
+    static unsigned long ana_down_at = 0;
+    static bool ana_long_sent = false;
+
+    int ana = analogRead(PIN_USER_BTN_ANA);
+    if (ana_idle < 0) {
+      ana_idle = ana;
+    }
+
+    bool ana_pressed = abs(ana - ana_idle) > 20;
+    if (ana_pressed) {
+      if (ana_down_at == 0) {
+        ana_down_at = millis();
+      }
+      if (!ana_long_sent && (unsigned long)(millis() - ana_down_at) >= 700) {
+        c = handleLongPress(KEY_ENTER);
+        ana_long_sent = true;
+      }
+    } else {
+      if (!ana_long_sent && ana_down_at != 0) {
+        c = checkDisplayOn(KEY_ENTER);
+      }
+      ana_down_at = 0;
+      ana_long_sent = false;
+    }
+
     _analogue_pin_read_millis = millis();
   }
 #endif
@@ -796,7 +923,8 @@ void UITask::loop() {
     if (millis() >= _next_refresh && curr) {
       _display->startFrame();
       int delay_millis = curr->render(*_display);
-      if (millis() < _alert_expiry) {  // render alert popup
+      if (millis() < _alert_expiry) {  // alert active — skip box overlay on e-ink
+#ifndef USE_GX_EPD_DISPLAY
         _display->setTextSize(1);
         int y = _display->height() / 3;
         int p = _display->height() / 32;
@@ -805,6 +933,7 @@ void UITask::loop() {
         _display->setColor(DisplayDriver::LIGHT);  // draw box border
         _display->drawRect(p, y, _display->width() - p*2, y);
         _display->drawTextCentered(_display->width() / 2, y + p*3, _alert);
+#endif
         _next_refresh = _alert_expiry;   // will need refresh when alert is dismissed
       } else {
         _next_refresh = millis() + delay_millis;
@@ -861,11 +990,17 @@ char UITask::checkDisplayOn(char c) {
 }
 
 char UITask::handleLongPress(char c) {
+#if defined(PIN_BUTTON_LEFT) && defined(PIN_BUTTON_CENTER) && defined(PIN_BUTTON_RIGHT)
+  // Dedicated 3-button navigation expects long-press to trigger page actions.
+  // Do not hijack long-press for CLI rescue on these targets.
+  return c;
+#else
   if (millis() - ui_started_at < 8000) {   // long press in first 8 seconds since startup -> CLI/rescue
     the_mesh.enterCLIRescue();
     c = 0;   // consume event
   }
   return c;
+#endif
 }
 
 char UITask::handleDoubleClick(char c) {

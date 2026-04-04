@@ -1,5 +1,23 @@
 Xiao S3 Wio mit GPS
 
+## Fork Notice (Emmpunkt)
+
+This fork focuses on a practical RAK4631 + RAK14000 companion radio build with BLE and E-Ink UI.
+
+Current fork goals:
+
+- Stable companion firmware on RAK4631 with RAK14000 E-Ink display.
+- Readable E-Ink UI layout for daily use.
+- Reliable button-driven navigation for the membrane-key setup.
+
+What was changed in this fork:
+
+- Added and tuned a dedicated E-Ink companion target in [variants/rak4631/platformio.ini](variants/rak4631/platformio.ini).
+- Reworked E-Ink rendering and frame handling in [src/helpers/ui/GxEPDDisplay.cpp](src/helpers/ui/GxEPDDisplay.cpp).
+- Updated companion UI layout and spacing in [examples/companion_radio/ui-new/UITask.cpp](examples/companion_radio/ui-new/UITask.cpp).
+- Added practical input fallback for this hardware: long press on left or right triggers Enter.
+- Enabled nRF52840 NFC pins as GPIO at boot in [variants/rak4631/RAK4631Board.cpp](variants/rak4631/RAK4631Board.cpp) to support WB_IO5/WB_IO6 button usage.
+
 ## About MeshCore
 
 MeshCore is a lightweight, portable C++ library that enables multi-hop packet routing for embedded projects using LoRa and other packet radios. It is designed for developers who want to create resilient, decentralized communication networks that work without the internet.

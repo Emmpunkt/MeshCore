@@ -15,6 +15,12 @@ RAK4631Board board;
   #if defined(PIN_USER_BTN_ANA)
   MomentaryButton analog_btn(PIN_USER_BTN_ANA, 1000, 20);
   #endif
+
+  #if defined(PIN_BUTTON_LEFT) && defined(PIN_BUTTON_CENTER) && defined(PIN_BUTTON_RIGHT)
+  MomentaryButton btn_left(PIN_BUTTON_LEFT, 1000, true, true);
+  MomentaryButton btn_center(PIN_BUTTON_CENTER, 1000, true, true);
+  MomentaryButton btn_right(PIN_BUTTON_RIGHT, 1000, true, true);
+  #endif
 #endif
 
 RADIO_CLASS radio = new Module(P_LORA_NSS, P_LORA_DIO_1, P_LORA_RESET, P_LORA_BUSY, SPI);

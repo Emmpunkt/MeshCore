@@ -591,6 +591,30 @@ void EnvironmentSensorManager::initBasicGPS() {
 #ifdef RAK_WISBLOCK_GPS
 void EnvironmentSensorManager::rakGPSInit(){
 
+#ifdef USE_GX_EPD_DISPLAY
+  // On RAK4631 e-ink builds, only slot D is safe for GPS probing.
+  Serial1.setPins(PIN_GPS_TX, PIN_GPS_RX);
+
+  #ifdef GPS_BAUD_RATE
+  Serial1.begin(GPS_BAUD_RATE);
+  #else
+  Serial1.begin(9600);
+  #endif
+
+  if (!gpsIsAwake(WB_IO5)) {
+    MESH_DEBUG_PRINTLN("No GPS found on safe slot D for e-ink build");
+    gps_active = false;
+    gps_detected = false;
+    Serial1.end();
+    return;
+  }
+
+  #ifndef FORCE_GPS_ALIVE
+  stop_gps();
+  #endif
+  return;
+#endif
+
   Serial1.setPins(PIN_GPS_TX, PIN_GPS_RX);
 
   #ifdef GPS_BAUD_RATE
@@ -610,7 +634,7 @@ void EnvironmentSensorManager::rakGPSInit(){
   }
   else if(gpsIsAwake(WB_IO5)){
   //  MESH_DEBUG_PRINTLN("RAK base board is RAK19001/11");
-  //  MESH_DEBUG_PRINTLN("GPS is installed on Socket F");
+  //  MESH_DEBUG_PRINTLN("GPS is installed on Socket D");
   }
   else{
     MESH_DEBUG_PRINTLN("No GPS found");
@@ -627,6 +651,69 @@ void EnvironmentSensorManager::rakGPSInit(){
 }
 
 bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
+
+  // Do not probe pins already reserved by the active display backend.
+  // On RAK4631 + RAK14000, WB_IO2/WB_IO4 are used by e-ink power/busy and
+  // toggling them for GPS probing can shut down or stall the display.
+#ifdef PIN_DISPLAY_POWER
+  if (ioPin == PIN_DISPLAY_POWER) {
+    MESH_DEBUG_PRINTLN("Skip GPS probe on display power pin %i", ioPin);
+    return false;
+  }
+#endif
+#ifdef PIN_DISPLAY_BUSY
+  if (ioPin == PIN_DISPLAY_BUSY) {
+    MESH_DEBUG_PRINTLN("Skip GPS probe on display busy pin %i", ioPin);
+    return false;
+  }
+#endif
+#if defined(USE_GX_EPD_DISPLAY) && defined(WB_IO4)
+  // RAK14000 busy is physically on WB_IO4; keep it reserved even if
+  // PIN_DISPLAY_BUSY is configured as -1 for compatibility experiments.
+  if (ioPin == WB_IO4) {
+    MESH_DEBUG_PRINTLN("Skip GPS probe on reserved e-ink busy pin %i", ioPin);
+    return false;
+  }
+#endif
+
+#if defined(USE_GX_EPD_DISPLAY) && defined(WB_IO2)
+  // Slot A shares WB_IO2 with e-ink power on RAK4631. Do a passive detect
+  // instead of LOW/HIGH toggling, which can blank the display.
+  if (ioPin == WB_IO2) {
+    pinMode(ioPin, INPUT_PULLUP);
+    digitalWrite(ioPin, HIGH);
+
+    if (ublox_GNSS.begin(Wire) == true) {
+      MESH_DEBUG_PRINTLN("RAK12500 GPS passively detected on pin %i", ioPin);
+      ublox_GNSS.setI2COutput(COM_TYPE_UBX);
+      ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GPS);
+      ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GALILEO);
+      ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GLONASS);
+      ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_SBAS);
+      ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_BEIDOU);
+      ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_IMES);
+      ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_QZSS);
+      ublox_GNSS.setMeasurementRate(1000);
+      ublox_GNSS.saveConfigSelective(VAL_CFG_SUBSEC_IOPORT);
+      gpsResetPin = ioPin;
+      i2cGPSFlag = true;
+      gps_active = true;
+      gps_detected = true;
+      _location = &RAK12500_provider;
+      return true;
+    } else if (Serial1.available()) {
+      MESH_DEBUG_PRINTLN("Serial GPS passively detected on pin %i", ioPin);
+      gpsResetPin = ioPin;
+      serialGPSFlag = true;
+      gps_active = true;
+      gps_detected = true;
+      return true;
+    }
+
+    MESH_DEBUG_PRINTLN("No passive GPS detect on shared e-ink pin %i", ioPin);
+    return false;
+  }
+#endif
 
   //set initial waking state
   pinMode(ioPin,OUTPUT);

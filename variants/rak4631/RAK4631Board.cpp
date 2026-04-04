@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Wire.h>
+#include <nrf.h>
 
 #include "RAK4631Board.h"
 
@@ -27,6 +28,22 @@ void RAK4631Board::initiateShutdown(uint8_t reason) {
 
 void RAK4631Board::begin() {
   NRF52BoardDCDC::begin();
+
+  // WB_IO5/WB_IO6 map to P0.09/P0.10 (NFC pins). Ensure they operate as GPIO.
+  // This is persisted in UICR and may require one reboot immediately after first flash.
+  if ((NRF_UICR->NFCPINS & UICR_NFCPINS_PROTECT_Msk) == UICR_NFCPINS_PROTECT_NFC) {
+    NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Wen << NVMC_CONFIG_WEN_Pos;
+    while (NRF_NVMC->READY == NVMC_READY_READY_Busy) {}
+
+    NRF_UICR->NFCPINS = UICR_NFCPINS_PROTECT_Disabled;
+    while (NRF_NVMC->READY == NVMC_READY_READY_Busy) {}
+
+    NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Ren << NVMC_CONFIG_WEN_Pos;
+    while (NRF_NVMC->READY == NVMC_READY_READY_Busy) {}
+
+    NVIC_SystemReset();
+  }
+
   pinMode(PIN_VBAT_READ, INPUT);
 #ifdef PIN_USER_BTN
   pinMode(PIN_USER_BTN, INPUT_PULLUP);
