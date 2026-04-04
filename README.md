@@ -3,7 +3,7 @@ Xiao S3 Wio mit GPS   &   RAK4631 + RAK14000 + RAK12500
 ## Fork Notice (Emmpunkt)
 
 This fork focuses on a practical RAK4631 + RAK14000 companion radio build with BLE and E-Ink UI.
-
+The Rak12500 goes into Slot D !!! Slot A does not work
 Current fork goals:
 
 - Stable companion firmware on RAK4631 with RAK14000 E-Ink display.
