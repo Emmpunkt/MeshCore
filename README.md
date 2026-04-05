@@ -8,6 +8,13 @@ This fork focuses on a practical RAK4631 + RAK14000 companion radio build with B
 > For this fork/setup, install the RAK12500 GPS module in Slot D.
 > Slot A is not supported here.
 
+### Known Hardware Constraints (RAK4631 + RAK14000 + RAK12500)
+
+- Use RAK12500 in Slot D only.
+- Slot A is not supported in this fork for this setup.
+- On this hardware stack, the center button line can conflict with GPS control.
+- Daily operation is intended with left/right navigation and long-press enter fallback.
+
 Current fork goals:
 
 - Stable companion firmware on RAK4631 with RAK14000 E-Ink display.
