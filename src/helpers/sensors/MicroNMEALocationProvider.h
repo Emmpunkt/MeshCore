@@ -74,6 +74,8 @@ public :
     }
 
     void begin() override {
+        nmea.clear();
+        time_valid = 0;
         claim();
         if (_pin_en != -1) {
             digitalWrite(_pin_en, PIN_GPS_EN_ACTIVE);
@@ -84,6 +86,8 @@ public :
     }
 
     void reset() override {
+        nmea.clear();
+        time_valid = 0;
         if (_pin_reset != -1) {
             digitalWrite(_pin_reset, GPS_RESET_FORCE);
             delay(10);
@@ -92,6 +96,12 @@ public :
     }
 
     void stop() override {
+        nmea.clear();
+        time_valid = 0;
+        _time_sync_needed = true;
+        while (_gps_serial->available()) {
+            _gps_serial->read();
+        }
         if (_pin_en != -1) {
             digitalWrite(_pin_en, !PIN_GPS_EN_ACTIVE);
         }

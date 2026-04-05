@@ -1681,8 +1681,14 @@ void MyMesh::handleCmdFrame(size_t len) {
       if (success) {
         #if ENV_INCLUDE_GPS == 1
         // Update node preferences for GPS settings
-        if (strcmp(sp, "gps") == 0) {
-          _prefs.gps_enabled = (np[0] == '1') ? 1 : 0;
+        if (strcmp(sp, "gps") == 0 || strcmp(sp, "gps_enabled") == 0) {
+          bool enable =
+            strcmp(np, "1") == 0 ||
+            strcasecmp(np, "true") == 0 ||
+            strcasecmp(np, "on") == 0 ||
+            strcasecmp(np, "enabled") == 0 ||
+            strcasecmp(np, "yes") == 0;
+          _prefs.gps_enabled = enable ? 1 : 0;
           savePrefs();
         } else if (strcmp(sp, "gps_interval") == 0) {
           uint32_t interval_seconds = atoi(np);

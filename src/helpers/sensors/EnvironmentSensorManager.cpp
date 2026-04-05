@@ -128,9 +128,9 @@ public:
   bool isValid() override { return _fix; }
   long getTimestamp() override { return _epoch; }
   void sendSentence(const char * sentence) override { }
-  void reset() override { }
-  void begin() override { }
-  void stop() override { }
+  void reset() override { _lat = 0; _lng = 0; _alt = 0; _sats = 0; _epoch = 0; _fix = false; }
+  void begin() override { _fix = false; }
+  void stop() override { _lat = 0; _lng = 0; _alt = 0; _sats = 0; _epoch = 0; _fix = false; }
   void loop() override {
     if (ublox_GNSS.getGnssFixOk(8)) {
       _fix = true;
@@ -337,7 +337,7 @@ bool EnvironmentSensorManager::begin() {
 bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, CayenneLPP& telemetry) {
   next_available_channel = TELEM_CHANNEL_SELF + 1;
 
-  if (requester_permissions & TELEM_PERM_LOCATION && gps_active) {
+  if (requester_permissions & TELEM_PERM_LOCATION && gps_enabled_setting && gps_active) {
     telemetry.addGPS(TELEM_CHANNEL_SELF, node_lat, node_lon, node_altitude); // allow lat/lon via telemetry even if no GPS is detected
   }
 
@@ -492,7 +492,7 @@ bool EnvironmentSensorManager::querySensors(uint8_t requester_permissions, Cayen
 int EnvironmentSensorManager::getNumSettings() const {
   int settings = 0;
   #if ENV_INCLUDE_GPS
-    if (gps_detected) settings++;  // only show GPS setting if GPS is detected
+    settings++;  // expose a single canonical key to avoid client-side flip-flop
   #endif
   return settings;
 }
@@ -500,7 +500,7 @@ int EnvironmentSensorManager::getNumSettings() const {
 const char* EnvironmentSensorManager::getSettingName(int i) const {
   int settings = 0;
   #if ENV_INCLUDE_GPS
-    if (gps_detected && i == settings++) {
+    if (i == settings++) {
       return "gps";
     }
   #endif
@@ -512,8 +512,8 @@ const char* EnvironmentSensorManager::getSettingName(int i) const {
 const char* EnvironmentSensorManager::getSettingValue(int i) const {
   int settings = 0;
   #if ENV_INCLUDE_GPS
-    if (gps_detected && i == settings++) {
-      return gps_active ? "1" : "0";
+    if (i == settings++) {
+      return gps_enabled_setting ? "1" : "0";
     }
   #endif
   // convenient way to add params ...
@@ -523,11 +523,30 @@ const char* EnvironmentSensorManager::getSettingValue(int i) const {
 
 bool EnvironmentSensorManager::setSettingValue(const char* name, const char* value) {
   #if ENV_INCLUDE_GPS
-  if (gps_detected && strcmp(name, "gps") == 0) {
-    if (strcmp(value, "0") == 0) {
+  if (strcmp(name, "gps") == 0 || strcmp(name, "gps_enabled") == 0) {
+    bool disable =
+      strcmp(value, "0") == 0 ||
+      strcasecmp(value, "false") == 0 ||
+      strcasecmp(value, "off") == 0 ||
+      strcasecmp(value, "disabled") == 0 ||
+      strcasecmp(value, "no") == 0;
+
+    bool enable =
+      strcmp(value, "1") == 0 ||
+      strcasecmp(value, "true") == 0 ||
+      strcasecmp(value, "on") == 0 ||
+      strcasecmp(value, "enabled") == 0 ||
+      strcasecmp(value, "yes") == 0;
+
+    if (disable) {
+      gps_enabled_setting = false;
       stop_gps();
-    } else {
+    } else if (enable) {
+      gps_enabled_setting = true;
       start_gps();
+    } else {
+      // Unknown value - ignore instead of accidentally enabling GPS.
+      return false;
     }
     return true;
   }
@@ -576,6 +595,7 @@ void EnvironmentSensorManager::initBasicGPS() {
   if (gps_detected) {
     MESH_DEBUG_PRINTLN("GPS detected");
     #ifdef PERSISTANT_GPS
+      gps_enabled_setting = true;
       gps_active = true;
       return;
     #endif
@@ -583,6 +603,7 @@ void EnvironmentSensorManager::initBasicGPS() {
     MESH_DEBUG_PRINTLN("No GPS detected");
   }
   _location->stop();
+  gps_enabled_setting = false;
   gps_active = false; //Set GPS visibility off until setting is changed
 }
 
@@ -651,6 +672,28 @@ void EnvironmentSensorManager::rakGPSInit(){
 }
 
 bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
+
+  // Never reuse UI button GPIOs for GPS wake/reset probing.
+  // If shared, toggling these pins can generate phantom key events and lock UI navigation.
+#ifdef PIN_BUTTON_LEFT
+  if (ioPin == PIN_BUTTON_LEFT) {
+    MESH_DEBUG_PRINTLN("Skip GPS probe on button pin %i (left)", ioPin);
+    return false;
+  }
+#endif
+#ifdef PIN_BUTTON_CENTER
+  if (ioPin == PIN_BUTTON_CENTER) {
+    // On some RAK4631 e-ink stacks, GPS reset/probe is wired to the same pin
+    // as the center key. Keep GPS functional and handle center-key conflict in UI.
+    MESH_DEBUG_PRINTLN("Allow GPS probe on shared center/button pin %i", ioPin);
+  }
+#endif
+#ifdef PIN_BUTTON_RIGHT
+  if (ioPin == PIN_BUTTON_RIGHT) {
+    MESH_DEBUG_PRINTLN("Skip GPS probe on button pin %i (right)", ioPin);
+    return false;
+  }
+#endif
 
   // Do not probe pins already reserved by the active display backend.
   // On RAK4631 + RAK14000, WB_IO2/WB_IO4 are used by e-ink power/busy and
@@ -762,8 +805,12 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
 void EnvironmentSensorManager::start_gps() {
   gps_active = true;
   #ifdef RAK_WISBLOCK_GPS
-    pinMode(gpsResetPin, OUTPUT);
-    digitalWrite(gpsResetPin, HIGH);
+    if (gpsResetPin > 0) {
+      pinMode(gpsResetPin, OUTPUT);
+      digitalWrite(gpsResetPin, HIGH);
+    }
+    _location->begin();
+    _location->reset();
     return;
   #endif
 
@@ -777,9 +824,15 @@ void EnvironmentSensorManager::start_gps() {
 
 void EnvironmentSensorManager::stop_gps() {
   gps_active = false;
+  node_lat = 0;
+  node_lon = 0;
+  node_altitude = 0;
   #ifdef RAK_WISBLOCK_GPS
-    pinMode(gpsResetPin, OUTPUT);
-    digitalWrite(gpsResetPin, LOW);
+    _location->stop();
+    if (gpsResetPin > 0) {
+      pinMode(gpsResetPin, OUTPUT);
+      digitalWrite(gpsResetPin, LOW);
+    }
     return;
   #endif
 
@@ -792,14 +845,16 @@ void EnvironmentSensorManager::stop_gps() {
 
 void EnvironmentSensorManager::loop() {
   static long next_gps_update = 0;
+  static long next_gps_poll = 0;
 
   #if ENV_INCLUDE_GPS
-  if (gps_active) {
+  if (gps_enabled_setting && gps_active && millis() > next_gps_poll) {
     _location->loop();
+    next_gps_poll = millis() + 1000;
   }
   if (millis() > next_gps_update) {
 
-    if(gps_active){
+    if(gps_enabled_setting && gps_active){
     #ifdef RAK_WISBLOCK_GPS
     if ((i2cGPSFlag || serialGPSFlag) && _location->isValid()) {
       node_lat = ((double)_location->getLatitude())/1000000.;

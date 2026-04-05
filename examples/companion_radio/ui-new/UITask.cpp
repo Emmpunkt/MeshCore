@@ -314,7 +314,22 @@ public:
       display.drawTextRightAlign(display.width() - 1, y, buf);
       y += UI_INFO_ROW_STEP;
 
-      if (nmea == NULL) {
+      if (!gps_state) {
+        display.drawTextLeftAlign(0, y, "Fix");
+        display.drawTextRightAlign(display.width() - 1, y, "off");
+        y += UI_INFO_ROW_STEP;
+
+        display.drawTextLeftAlign(0, y, "Sat");
+        display.drawTextRightAlign(display.width() - 1, y, "-");
+        y += UI_INFO_ROW_STEP;
+
+        display.drawTextLeftAlign(0, y, "Lat/Lon");
+        display.drawTextRightAlign(display.width() - 1, y, "-");
+        y += UI_INFO_ROW_STEP;
+
+        display.drawTextLeftAlign(0, y, "Alt");
+        display.drawTextRightAlign(display.width() - 1, y, "-");
+      } else if (nmea == NULL) {
         display.drawTextLeftAlign(0, y, "GPS");
         display.drawTextRightAlign(display.width() - 1, y, "unavailable");
       } else {
@@ -537,13 +552,69 @@ public:
     display.setColor(DisplayDriver::YELLOW);
     char filtered_origin[sizeof(p->origin)];
     display.translateUTF8ToBlocks(filtered_origin, p->origin, sizeof(filtered_origin));
-    display.drawTextEllipsized(0, 42, display.width(), filtered_origin);
+    display.drawTextEllipsized(0, 34, display.width(), filtered_origin);
 
-    display.setCursor(0, 58);
     display.setColor(DisplayDriver::LIGHT);
     char filtered_msg[sizeof(p->msg)];
     display.translateUTF8ToBlocks(filtered_msg, p->msg, sizeof(filtered_msg));
-    display.printWordWrap(filtered_msg, display.width());
+
+    // E-ink drivers may not implement word-wrap; split explicitly into five lines.
+    const int maxw = display.width();
+    const int msg_y[5] = {56, 72, 88, 104, 120};
+    int msg_len = strlen(filtered_msg);
+
+    char probe[sizeof(filtered_msg)];
+    auto findSplit = [&](int start) {
+      int split = msg_len;
+      for (int i = start + 1; i <= msg_len; i++) {
+        int n = i - start;
+        memcpy(probe, &filtered_msg[start], n);
+        probe[n] = 0;
+        if (display.getTextWidth(probe) > maxw) {
+          split = i - 1;
+          break;
+        }
+      }
+
+      // Prefer splitting at a whitespace close to the measured boundary.
+      if (split < msg_len) {
+        int ws = split;
+        while (ws > start && filtered_msg[ws] != ' ') {
+          ws--;
+        }
+        if (ws > start) {
+          split = ws;
+        }
+      }
+
+      while (split > start && filtered_msg[split - 1] == ' ') {
+        split--;
+      }
+      if (split <= start) {
+        split = start + 1;
+      }
+      return split;
+    };
+
+    int start = 0;
+    for (int line = 0; line < 5 && start < msg_len; line++) {
+      if (line == 4) {
+        // Last line: draw remainder with ellipsis if needed.
+        display.drawTextEllipsized(0, msg_y[line], maxw, &filtered_msg[start]);
+        break;
+      }
+
+      int split = findSplit(start);
+      char line_buf[sizeof(filtered_msg)];
+      memcpy(line_buf, &filtered_msg[start], split - start);
+      line_buf[split - start] = 0;
+      display.drawTextEllipsized(0, msg_y[line], maxw, line_buf);
+
+      start = split;
+      while (start < msg_len && filtered_msg[start] == ' ') {
+        start++;
+      }
+    }
 
 #if AUTO_OFF_MILLIS==0 // probably e-ink
     return 10000; // 10 s
@@ -746,7 +817,7 @@ void UITask::shutdown(bool restart){
 
 bool UITask::isButtonPressed() const {
 #if defined(PIN_BUTTON_LEFT) && defined(PIN_BUTTON_CENTER) && defined(PIN_BUTTON_RIGHT)
-  return btn_center.isPressed() || btn_left.isPressed() || btn_right.isPressed();
+  return btn_left.isPressed() || btn_right.isPressed();
 #elif defined(PIN_USER_BTN)
   return user_btn.isPressed();
 #else
@@ -757,41 +828,9 @@ bool UITask::isButtonPressed() const {
 void UITask::loop() {
   char c = 0;
 #if defined(PIN_BUTTON_LEFT) && defined(PIN_BUTTON_CENTER) && defined(PIN_BUTTON_RIGHT)
-  // Direct 3-button navigation: Left (back), Center (enter), Right (forward).
-  static int center_idle_level = -1;
-  static unsigned long center_down_at = 0;
-  static bool center_long_sent = false;
-
-  int ev = btn_center.check();
-  if (ev == BUTTON_EVENT_CLICK) {
-    c = checkDisplayOn(KEY_ENTER);
-  } else if (ev == BUTTON_EVENT_LONG_PRESS) {
-    c = handleLongPress(KEY_ENTER);
-  }
-
-  // Extra fallback for boards where button polarity/pull differs from MomentaryButton setup.
-  if (c == 0) {
-    int level = digitalRead(PIN_BUTTON_CENTER);
-    if (center_idle_level < 0) {
-      center_idle_level = level;
-    }
-    bool center_pressed = (level != center_idle_level);
-    if (center_pressed) {
-      if (center_down_at == 0) {
-        center_down_at = millis();
-      }
-      if (!center_long_sent && (unsigned long)(millis() - center_down_at) >= 700) {
-        c = handleLongPress(KEY_ENTER);
-        center_long_sent = true;
-      }
-    } else {
-      if (!center_long_sent && center_down_at != 0) {
-        c = checkDisplayOn(KEY_ENTER);
-      }
-      center_down_at = 0;
-      center_long_sent = false;
-    }
-  }
+  // On this RAK4631+RAK14000 setup, center key pin can be shared with GPS reset/probe.
+  // Keep UI stable by using left/right navigation and long-press enter fallback only.
+  int ev = 0;
 
   if (c == 0) {
     ev = btn_left.check();
@@ -1021,35 +1060,44 @@ bool UITask::getGPSState() {
   if (_sensors != NULL) {
     int num = _sensors->getNumSettings();
     for (int i = 0; i < num; i++) {
-      if (strcmp(_sensors->getSettingName(i), "gps") == 0) {
-        return !strcmp(_sensors->getSettingValue(i), "1");
+      const char* setting_name = _sensors->getSettingName(i);
+      if (setting_name != NULL &&
+          (strcmp(setting_name, "gps") == 0 || strcmp(setting_name, "gps_enabled") == 0)) {
+        bool gps_state = !strcmp(_sensors->getSettingValue(i), "1");
+        if (_node_prefs != NULL) {
+          _node_prefs->gps_enabled = gps_state ? 1 : 0;
+        }
+        return gps_state;
       }
     }
-  } 
+  }
+  if (_node_prefs != NULL) {
+    return _node_prefs->gps_enabled != 0;
+  }
   return false;
 }
 
 void UITask::toggleGPS() {
-    if (_sensors != NULL) {
-    // toggle GPS on/off
-    int num = _sensors->getNumSettings();
-    for (int i = 0; i < num; i++) {
-      if (strcmp(_sensors->getSettingName(i), "gps") == 0) {
-        if (strcmp(_sensors->getSettingValue(i), "1") == 0) {
-          _sensors->setSettingValue("gps", "0");
-          _node_prefs->gps_enabled = 0;
-          notify(UIEventType::ack);
-        } else {
-          _sensors->setSettingValue("gps", "1");
-          _node_prefs->gps_enabled = 1;
-          notify(UIEventType::ack);
-        }
-        the_mesh.savePrefs();
-        showAlert(_node_prefs->gps_enabled ? "GPS: Enabled" : "GPS: Disabled", 800);
-        _next_refresh = 0;
-        break;
-      }
+  if (_sensors != NULL && _node_prefs != NULL) {
+    bool enable_gps = !getGPSState();
+
+    // Support both key variants used by different app versions.
+    bool changed = _sensors->setSettingValue("gps", enable_gps ? "1" : "0");
+    if (!changed) {
+      changed = _sensors->setSettingValue("gps_enabled", enable_gps ? "1" : "0");
     }
+
+    bool gps_state_now = getGPSState();
+    _node_prefs->gps_enabled = gps_state_now ? 1 : 0;
+
+    notify(UIEventType::ack);
+    the_mesh.savePrefs();
+    if (changed) {
+      showAlert(_node_prefs->gps_enabled ? "GPS: Enabled" : "GPS: Disabled", 800);
+    } else {
+      showAlert("GPS toggle failed", 800);
+    }
+    _next_refresh = 0;
   }
 }
 
