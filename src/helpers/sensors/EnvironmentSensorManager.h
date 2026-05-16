@@ -27,6 +27,7 @@ protected:
   bool gps_detected = false;
   bool gps_active = false;
   uint32_t gps_update_interval_sec = 1;  // Default 1 second
+  uint32_t _gps_boot_deadline = 0;  // non-zero: GPS powering on, don't poll I2C yet
 
   #if ENV_INCLUDE_GPS
   LocationProvider* _location;

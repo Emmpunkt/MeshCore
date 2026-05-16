@@ -125,8 +125,8 @@ class HomeScreen : public UIScreen {
     // battery outline
     display.drawRect(iconX, iconY, iconWidth, iconHeight);
 
-    // battery "cap"
-    display.fillRect(iconX + iconWidth, iconY + (iconHeight / 4), 3, iconHeight / 2);
+    // battery "cap" — centered: 2px margin top+bottom matches fill inset
+    display.fillRect(iconX + iconWidth, iconY + 2, 3, iconHeight - 4);
 
     // fill the battery based on the percentage
     int fillWidth = (batteryPercentage * (iconWidth - 4)) / 100;
@@ -197,9 +197,9 @@ public:
     int x = display.width() / 2 - 5 * (HomePage::Count-1);
     for (uint8_t i = 0; i < HomePage::Count; i++, x += 10) {
       if (i == _page) {
-        display.fillRect(x-1, y-1, 3, 3);
+        display.fillRect(x-2, y-1, 5, 3);
       } else {
-        display.fillRect(x, y, 1, 1);
+        display.fillRect(x-1, y, 3, 2);
       }
     }
 
@@ -552,10 +552,13 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
   _auto_off = millis() + AUTO_OFF_MILLIS;
 
 #if defined(PIN_USER_BTN)
-  user_btn.begin();
+  user_btn.cancelClick();
 #endif
-#if defined(PIN_USER_BTN_ANA)
-  analog_btn.begin();
+#if defined(PIN_BTN_RIGHT)
+  right_btn.cancelClick();
+#endif
+#if defined(PIN_USER_BTN_ANA) || defined(PIN_BTN_LEFT)
+  analog_btn.cancelClick();
 #endif
 
   _node_prefs = node_prefs;
@@ -730,26 +733,24 @@ void UITask::loop() {
 #elif defined(PIN_USER_BTN)
   int ev = user_btn.check();
   if (ev == BUTTON_EVENT_CLICK) {
-    c = checkDisplayOn(KEY_NEXT);
-  } else if (ev == BUTTON_EVENT_LONG_PRESS) {
-    c = handleLongPress(KEY_ENTER);
-  } else if (ev == BUTTON_EVENT_DOUBLE_CLICK) {
-    c = handleDoubleClick(KEY_PREV);
+    c = checkDisplayOn(KEY_ENTER);
   } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
     c = handleTripleClick(KEY_SELECT);
   }
 #endif
-#if defined(PIN_USER_BTN_ANA)
-  if (abs(millis() - _analogue_pin_read_millis) > 10) {
-    ev = analog_btn.check();
-    if (ev == BUTTON_EVENT_CLICK) {
+#if defined(PIN_BTN_RIGHT)
+  {
+    int rev = right_btn.check();
+    if (rev == BUTTON_EVENT_CLICK) {
       c = checkDisplayOn(KEY_NEXT);
-    } else if (ev == BUTTON_EVENT_LONG_PRESS) {
-      c = handleLongPress(KEY_ENTER);
-    } else if (ev == BUTTON_EVENT_DOUBLE_CLICK) {
-      c = handleDoubleClick(KEY_PREV);
-    } else if (ev == BUTTON_EVENT_TRIPLE_CLICK) {
-      c = handleTripleClick(KEY_SELECT);
+    }
+  }
+#endif
+#if defined(PIN_USER_BTN_ANA) || defined(PIN_BTN_LEFT)
+  if (abs(millis() - _analogue_pin_read_millis) > 10) {
+    int lev = analog_btn.check();
+    if (lev == BUTTON_EVENT_CLICK) {
+      c = checkDisplayOn(KEY_PREV);
     }
     _analogue_pin_read_millis = millis();
   }
@@ -849,10 +850,15 @@ char UITask::checkDisplayOn(char c) {
 }
 
 char UITask::handleLongPress(char c) {
-  if (millis() - ui_started_at < 8000) {   // long press in first 8 seconds since startup -> CLI/rescue
+#ifndef CLI_RESCUE_WINDOW_MS
+#define CLI_RESCUE_WINDOW_MS 8000
+#endif
+#if CLI_RESCUE_WINDOW_MS > 0
+  if (millis() - ui_started_at < CLI_RESCUE_WINDOW_MS) {  // long press in first N ms -> CLI/rescue
     the_mesh.enterCLIRescue();
     c = 0;   // consume event
   }
+#endif
   return c;
 }
 

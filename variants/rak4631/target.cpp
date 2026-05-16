@@ -14,6 +14,11 @@ RAK4631Board board;
 
   #if defined(PIN_USER_BTN_ANA)
   MomentaryButton analog_btn(PIN_USER_BTN_ANA, 1000, 20);
+  #elif defined(PIN_BTN_LEFT)
+  MomentaryButton analog_btn(PIN_BTN_LEFT, 1000, true, true);
+  #endif
+  #if defined(PIN_BTN_RIGHT)
+  MomentaryButton right_btn(PIN_BTN_RIGHT, 1000, true, true);
   #endif
 #endif
 
@@ -34,6 +39,24 @@ AutoDiscoverRTCClock rtc_clock(fallback_clock);
 
 bool radio_init() {
   rtc_clock.begin(Wire);
+
+  // The display SPI corrupts SX1262 state, so we power-cycle it here.
+  // With PIN_DISPLAY_SCLK defined, the display uses displaySPI (SPIM2) not SPI (SPIM3).
+  // SPI.end() only uninitialises SPIM3 — SPIM2/display is completely unaffected.
+  SPI.end();                          // release MOSI/SCK from SPIM3 (prevents ESD back-power)
+  digitalWrite(P_LORA_NSS, LOW);     // NSS LOW — removes last ESD back-power path
+
+  digitalWrite(SX126X_POWER_EN, LOW);
+  delay(200);
+  digitalWrite(SX126X_POWER_EN, HIGH);
+  digitalWrite(P_LORA_NSS, HIGH);    // NSS HIGH as SX1262 boots
+
+  // Wait up to 2 s for BUSY LOW (SX1262 boot + calibration done).
+  unsigned long t = millis();
+  while (digitalRead(P_LORA_BUSY) && millis() - t < 2000) {}
+
+  // SPI.begin() called by RadioLib Module::init() (initialized=false after SPI.end()).
+  // This initialises SPIM3 for radio; SPIM2 (display) remains intact.
   return radio.std_init(&SPI);
 }
 

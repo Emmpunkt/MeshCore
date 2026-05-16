@@ -655,14 +655,18 @@ void EnvironmentSensorManager::rakGPSInit(){
   //  MESH_DEBUG_PRINTLN("RAK base board is RAK19007/10");
   //  MESH_DEBUG_PRINTLN("GPS is installed on Socket A");
   }
+#if !defined(PIN_DISPLAY_BUSY) || (PIN_DISPLAY_BUSY != 4)
   else if(gpsIsAwake(WB_IO4)){
   //  MESH_DEBUG_PRINTLN("RAK base board is RAK19003/9");
   //  MESH_DEBUG_PRINTLN("GPS is installed on Socket C");
   }
+#endif
+#if (!defined(PIN_USER_BTN) || (PIN_USER_BTN != 9)) && (!defined(PIN_BTN_LEFT) || (PIN_BTN_LEFT != 9))
   else if(gpsIsAwake(WB_IO5)){
   //  MESH_DEBUG_PRINTLN("RAK base board is RAK19001/11");
   //  MESH_DEBUG_PRINTLN("GPS is installed on Socket F");
   }
+#endif
   else{
     MESH_DEBUG_PRINTLN("No GPS found");
     gps_active = false;
@@ -679,16 +683,23 @@ void EnvironmentSensorManager::rakGPSInit(){
 
 bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
 
-  //set initial waking state
-  pinMode(ioPin,OUTPUT);
-  digitalWrite(ioPin,LOW);
-  delay(500);
-  digitalWrite(ioPin,HIGH);
-  delay(500);
+  // Power cycle: drive LOW briefly, then HIGH — keep HIGH throughout the
+  // boot-wait so GPS stays powered for all I2C attempts.
+  pinMode(ioPin, OUTPUT);
+  digitalWrite(ioPin, LOW);
+  delay(200);
+  digitalWrite(ioPin, HIGH);  // GPS starts booting; pin remains OUTPUT HIGH
 
-  //Try to init RAK12500 on I2C
-  if (ublox_GNSS.begin(Wire) == true){
-    MESH_DEBUG_PRINTLN("RAK12500 GPS init correctly with pin %i",ioPin);
+  // Retry I2C while holding pin HIGH (GPS stays powered).
+  // 5 × 200 ms = 1 s — enough for u-blox M8/F9 to become I2C-responsive.
+  bool i2cFound = false;
+  for (int retry = 0; retry < 5 && !i2cFound; retry++) {
+    delay(200);
+    i2cFound = (ublox_GNSS.begin(Wire) == true);
+  }
+
+  if (i2cFound) {
+    MESH_DEBUG_PRINTLN("RAK12500 GPS init correctly with pin %i", ioPin);
     ublox_GNSS.setI2COutput(COM_TYPE_UBX);
     ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GPS);
     ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_GALILEO);
@@ -698,17 +709,35 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
     ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_IMES);
     ublox_GNSS.enableGNSS(true, SFE_UBLOX_GNSS_ID_QZSS);
     ublox_GNSS.setMeasurementRate(1000);
-    ublox_GNSS.saveConfigSelective(VAL_CFG_SUBSEC_IOPORT);
+
+    // Disable TIMEPULSE output. On WisBlock Slot A the TP pin is routed to
+    // WB_IO1 (Arduino pin 17) which is also PIN_DISPLAY_DC. Leaving TP active
+    // drives pin 17 and corrupts SPI commands to the e-ink display controller.
+    // Saved to flash so the setting persists across GPS power cycles.
+    UBX_CFG_TP5_data_t tpCfg;
+    if (ublox_GNSS.getTimePulseParameters(&tpCfg)) {
+      tpCfg.flags.bits.active = 0;       // disable TP output (pin = Hi-Z)
+      tpCfg.flags.bits.lockedOtherSet = 0;
+      ublox_GNSS.setTimePulseParameters(&tpCfg);
+      MESH_DEBUG_PRINTLN("RAK12500 TP output disabled");
+    }
+
+    ublox_GNSS.saveConfiguration();  // persists I2C+GNSS+TP5 settings to flash
     gpsResetPin = ioPin;
     i2cGPSFlag = true;
     gps_active = true;
     gps_detected = true;
-
     _location = &RAK12500_provider;
+    // Release pin back to INPUT_PULLUP: the 13 kΩ pullup keeps the LDO
+    // enable HIGH so the GPS stays powered, and the pin is now an input
+    // (safe to use as a button on the same net).
+    pinMode(ioPin, INPUT_PULLUP);
     return true;
-  } else if (Serial1.available()) {
+  }
+
+  if (Serial1.available()) {
     MESH_DEBUG_PRINTLN("Serial GPS init correctly and is turned on");
-    if(PIN_GPS_EN){
+    if (PIN_GPS_EN) {
       gpsResetPin = PIN_GPS_EN;
     }
     serialGPSFlag = true;
@@ -716,7 +745,12 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
     gps_detected = true;
     return true;
   }
-  
+
+  // Not found on this slot. Explicitly power the slot OFF (drive LOW) before
+  // restoring to INPUT — this ensures GPS capacitors discharge and the module
+  // cannot be falsely detected by the next slot's I2C probe.
+  digitalWrite(ioPin, LOW);
+  delay(100);
   pinMode(ioPin, INPUT);
   MESH_DEBUG_PRINTLN("GPS did not init with this IO pin... try the next");
   return false;
@@ -724,12 +758,19 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
 #endif
 
 void EnvironmentSensorManager::start_gps() {
-  gps_active = true;
   #ifdef RAK_WISBLOCK_GPS
+    // Power on GPS. Do NOT set gps_active yet — u-blox I2C interface needs
+    // ~500 ms to initialise after power-on. Wire_nRF52 has no I2C timeout;
+    // calling ublox_GNSS before it is ready hangs the main loop forever.
+    // loop() will probe I2C once _gps_boot_deadline is reached.
     pinMode(gpsResetPin, OUTPUT);
     digitalWrite(gpsResetPin, HIGH);
+    pinMode(gpsResetPin, INPUT_PULLUP);
+    gps_active = false;
+    _gps_boot_deadline = millis() + 1500;
     return;
   #endif
+  gps_active = true;
 
   _location->begin();
   _location->reset();
@@ -758,13 +799,27 @@ void EnvironmentSensorManager::loop() {
   static long next_gps_update = 0;
 
   #if ENV_INCLUDE_GPS
-  if (gps_active) {
-    _location->loop();
+  // After start_gps() powers on GPS, activate polling only after the module
+  // has had time to fully boot. Wire_nRF52 has no I2C timeout — probing too
+  // early risks an infinite spin in endTransmission() if GPS holds the bus
+  // during its power-on sequence.
+  #ifdef RAK_WISBLOCK_GPS
+  if (_gps_boot_deadline > 0 && millis() >= _gps_boot_deadline) {
+    _gps_boot_deadline = 0;
+    gps_active = true;  // GPS has had 1.5 s to boot; start polling
+    next_gps_update = 0; // poll on the very next timer tick
+    MESH_DEBUG_PRINTLN("GPS boot delay done, polling enabled");
   }
+  #endif
+
   if (millis() > next_gps_update) {
 
     if(gps_active){
+    // Poll GPS I2C here (1 Hz), NOT every main-loop iteration.
+    // Wire_nRF52 has no timeout; calling this too often risks blocking if
+    // the GPS module ever holds I2C, and wastes bus bandwidth needlessly.
     #ifdef RAK_WISBLOCK_GPS
+    _location->loop();
     if ((i2cGPSFlag || serialGPSFlag) && _location->isValid()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
       node_lon = ((double)_location->getLongitude())/1000000.;
@@ -773,6 +828,7 @@ void EnvironmentSensorManager::loop() {
       MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
     }
     #else
+    _location->loop();
     if (_location->isValid()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
       node_lon = ((double)_location->getLongitude())/1000000.;

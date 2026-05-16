@@ -118,3 +118,21 @@ There are a number of fairly major features in the pipeline, with no particular 
 - Report bugs and request features on the [GitHub Issues](https://github.com/ripplebiz/MeshCore/issues) page.
 - Find additional guides and components on [my site](https://buymeacoffee.com/ripplebiz).
 - Join [MeshCore Discord](https://meshcore.gg) to chat with the developers and get help from the community.
+
+---
+
+## 🖥️ Custom Build: RAK4631 Companion Radio BLE E-Ink
+
+This repository includes an additional build target for a RAK4631 WisBlock device
+with a 2.13" e-ink display:
+
+**Hardware:**
+- RAK4631 WisBlock Core (nRF52840)
+- GxEPD2_213_BN E-Ink Display (250×122px) with 3 foil buttons (RAK14000)
+- BLE Companion Radio (MeshCore protocol)
+- RAK12500 GPS Module (optional, Slot A)
+
+**PlatformIO target:** `RAK_4631_companion_radio_ble_eink`
+
+For full documentation of hardware quirks, pin assignments, and all changes vs.
+upstream MeshCore, see [RAK4631_eink_TODO.md](./RAK4631_eink_TODO.md).

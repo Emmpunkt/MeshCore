@@ -21,7 +21,9 @@ class SerialBLEInterface : public BaseSerialInterface {
     uint8_t buf[MAX_FRAME_SIZE];
   };
 
-  #define FRAME_QUEUE_SIZE  12
+  #ifndef FRAME_QUEUE_SIZE
+  #define FRAME_QUEUE_SIZE  32
+  #endif
   
   uint8_t send_queue_len;
   Frame send_queue[FRAME_QUEUE_SIZE];

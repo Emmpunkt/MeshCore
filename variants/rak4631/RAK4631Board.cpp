@@ -31,7 +31,12 @@ void RAK4631Board::begin() {
 #ifdef PIN_USER_BTN
   pinMode(PIN_USER_BTN, INPUT_PULLUP);
 #endif
-
+#ifdef PIN_BTN_LEFT
+  pinMode(PIN_BTN_LEFT, INPUT_PULLUP);
+#endif
+#ifdef PIN_BTN_RIGHT
+  pinMode(PIN_BTN_RIGHT, INPUT_PULLUP);
+#endif
 #ifdef PIN_USER_BTN_ANA
   pinMode(PIN_USER_BTN_ANA, INPUT_PULLUP);
 #endif
@@ -41,6 +46,11 @@ void RAK4631Board::begin() {
 #endif
 
   Wire.begin();
+
+  // Drive NSS HIGH before SX1262 powers on so it doesn't float during boot.
+  // The actual power-cycle (needed after display SPI) is in radio_init().
+  pinMode(P_LORA_NSS, OUTPUT);
+  digitalWrite(P_LORA_NSS, HIGH);
 
   pinMode(SX126X_POWER_EN, OUTPUT);
 #ifdef NRF52_POWER_MANAGEMENT

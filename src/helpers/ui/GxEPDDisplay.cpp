@@ -12,32 +12,85 @@
 
 #ifdef ESP32
   SPIClass SPI1 = SPIClass(FSPI);
+#elif defined(PIN_DISPLAY_SCLK)
+  // nRF52 with display on IO-slot SPI pins: use SPIM2 so SPIM3 stays free for LoRa radio
+  static SPIClass displaySPI(NRF_SPIM2, PIN_DISPLAY_MISO, PIN_DISPLAY_SCLK, PIN_DISPLAY_MOSI);
 #endif
 
 bool GxEPDDisplay::begin() {
+  // Only register the SPI bus — do NOT call SPI.begin() or display.init() here.
+  // Hardware init is deferred to _doHWInit(), called lazily from startFrame().
+  // This avoids initializing SPIM3 before radio_init(), which would cause the
+  // radio to hang (RadioLib needs to own the first SPI.begin() call sequence).
+#ifdef ESP32
   display.epd2.selectSPI(SPI1, SPISettings(4000000, MSBFIRST, SPI_MODE0));
+#elif defined(PIN_DISPLAY_SCLK)
+  display.epd2.selectSPI(displaySPI, SPISettings(4000000, MSBFIRST, SPI_MODE0));
+#else
+  display.epd2.selectSPI(SPI, SPISettings(4000000, MSBFIRST, SPI_MODE0));
+#endif
+  _init = true;
+  return true;
+}
+
+void GxEPDDisplay::_doHWInit() {
+  if (_hw_init_done) return;
+#ifdef PIN_DISPLAY_EN
+  pinMode(PIN_DISPLAY_EN, OUTPUT);
+  digitalWrite(PIN_DISPLAY_EN, HIGH);
+  delay(200);
+#endif
 #ifdef ESP32
   SPI1.begin(PIN_DISPLAY_SCLK, PIN_DISPLAY_MISO, PIN_DISPLAY_MOSI, PIN_DISPLAY_CS);
+#elif defined(PIN_DISPLAY_SCLK)
+  displaySPI.begin();
 #else
-  SPI1.begin();
+  SPI.begin();
 #endif
+
+#if defined(PIN_DISPLAY_BUSY) && defined(PIN_DISPLAY_CS) && defined(PIN_DISPLAY_DC)
+  // Recovery: if the SSD1680 controller is stuck with BUSY HIGH (e.g. power
+  // was cut during a refresh, or a previous GPIO conflict left it confused),
+  // send SWRESET (0x12) before init. SSD1680 accepts SWRESET while BUSY is
+  // HIGH; after reset BUSY goes LOW within ~200ms.
+  if (PIN_DISPLAY_BUSY >= 0 && digitalRead(PIN_DISPLAY_BUSY) == HIGH) {
+    auto& _spi =
+      #ifdef ESP32
+        SPI1
+      #elif defined(PIN_DISPLAY_SCLK)
+        displaySPI
+      #else
+        SPI
+      #endif
+      ;
+    pinMode(PIN_DISPLAY_CS, OUTPUT);  digitalWrite(PIN_DISPLAY_CS, HIGH);
+    pinMode(PIN_DISPLAY_DC, OUTPUT);  digitalWrite(PIN_DISPLAY_DC, LOW);
+    _spi.beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE0));
+    digitalWrite(PIN_DISPLAY_CS, LOW);
+    _spi.transfer(0x12);  // SWRESET
+    digitalWrite(PIN_DISPLAY_CS, HIGH);
+    _spi.endTransaction();
+    unsigned long t = millis();
+    while (digitalRead(PIN_DISPLAY_BUSY) == HIGH && millis() - t < 5000) delay(10);
+  }
+#endif
+
   display.init(115200, true, 2, false);
   display.setRotation(DISPLAY_ROTATION);
-  setTextSize(1);  // Default to size 1
+  setTextSize(1);
   display.setPartialWindow(0, 0, display.width(), display.height());
-
   display.fillScreen(GxEPD_WHITE);
   display.display(true);
   #if DISP_BACKLIGHT
   digitalWrite(DISP_BACKLIGHT, LOW);
   pinMode(DISP_BACKLIGHT, OUTPUT);
   #endif
-  _init = true;
-  return true;
+  _hw_init_done = true;
 }
 
 void GxEPDDisplay::turnOn() {
   if (!_init) begin();
+  if (!_hw_init_done) _doHWInit();
 #if defined(DISP_BACKLIGHT) && !defined(BACKLIGHT_BTN)
   digitalWrite(DISP_BACKLIGHT, HIGH);
 #elif defined(EXP_PIN_BACKLIGHT) && !defined(BACKLIGHT_BTN)
@@ -62,6 +115,7 @@ void GxEPDDisplay::clear() {
 }
 
 void GxEPDDisplay::startFrame(Color bkg) {
+  if (!_hw_init_done) _doHWInit();
   display.fillScreen(GxEPD_WHITE);
   display.setTextColor(_curr_color = GxEPD_BLACK);
   display_crc.reset();
@@ -171,6 +225,7 @@ uint16_t GxEPDDisplay::getTextWidth(const char* str) {
 }
 
 void GxEPDDisplay::endFrame() {
+  if (!_hw_init_done) return;
   uint32_t crc = display_crc.finalize();
   if (crc != last_display_crc_value) {
     display.display(true);

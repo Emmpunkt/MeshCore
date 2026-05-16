@@ -32,10 +32,13 @@ class GxEPDDisplay : public DisplayDriver {
   const float offset_y = 10;
 #endif
   bool _init = false;
+  bool _hw_init_done = false;
   bool _isOn = false;
   uint16_t _curr_color;
   CRC32 display_crc;
   int last_display_crc_value = 0;
+
+  void _doHWInit();
 
 public:
 #if defined(EINK_DISPLAY_MODEL)

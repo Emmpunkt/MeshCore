@@ -2,11 +2,11 @@
 
 #define MULTI_CLICK_WINDOW_MS  280
 
-MomentaryButton::MomentaryButton(int8_t pin, int long_press_millis, bool reverse, bool pulldownup, bool multiclick) { 
+MomentaryButton::MomentaryButton(int8_t pin, int long_press_millis, bool reverse, bool pulldownup, bool multiclick) {
   _pin = pin;
   _reverse = reverse;
   _pull = pulldownup;
-  down_at = 0; 
+  down_at = 0;
   prev = _reverse ? HIGH : LOW;
   cancel = 0;
   _long_millis = long_press_millis;

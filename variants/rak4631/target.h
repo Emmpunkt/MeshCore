@@ -9,12 +9,19 @@
 #include <helpers/sensors/EnvironmentSensorManager.h>
 
 #ifdef DISPLAY_CLASS
-  #include <helpers/ui/SSD1306Display.h>
+  #if defined(EINK_DISPLAY_MODEL)
+    #include <helpers/ui/GxEPDDisplay.h>
+  #else
+    #include <helpers/ui/SSD1306Display.h>
+  #endif
   extern DISPLAY_CLASS display;
   #include <helpers/ui/MomentaryButton.h>
   extern MomentaryButton user_btn;
-  #if defined(PIN_USER_BTN_ANA)
+  #if defined(PIN_USER_BTN_ANA) || defined(PIN_BTN_LEFT)
   extern MomentaryButton analog_btn;
+  #endif
+  #if defined(PIN_BTN_RIGHT)
+  extern MomentaryButton right_btn;
   #endif
 #endif
 
