@@ -100,6 +100,7 @@ class HomeScreen : public UIScreen {
   NodePrefs* _node_prefs;
   uint8_t _page;
   bool _shutdown_init;
+  unsigned long _shutdown_at;
   AdvertPath recent[UI_RECENT_LIST_SIZE];
 
 
@@ -172,12 +173,13 @@ class HomeScreen : public UIScreen {
 
 public:
   HomeScreen(UITask* task, mesh::RTCClock* rtc, SensorManager* sensors, NodePrefs* node_prefs)
-     : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0), 
-       _shutdown_init(false), sensors_lpp(200) {  }
+     : _task(task), _rtc(rtc), _sensors(sensors), _node_prefs(node_prefs), _page(0),
+       _shutdown_init(false), _shutdown_at(0), sensors_lpp(200) {  }
 
   void poll() override {
-    if (_shutdown_init && !_task->isButtonPressed()) {  // must wait for USR button to be released
-      _task->shutdown();
+    if (_shutdown_init) {
+      if (_shutdown_at == 0) _shutdown_at = millis() + 2500;  // give display time to show message
+      if (millis() >= _shutdown_at) _task->shutdown();
     }
   }
 
@@ -398,7 +400,9 @@ public:
       display.setColor(DisplayDriver::GREEN);
       display.setTextSize(1);
       if (_shutdown_init) {
-        display.drawTextCentered(display.width() / 2, 34, "hibernating...");
+        display.drawTextCentered(display.width() / 2, 28, "Hibernating...");
+        display.setColor(DisplayDriver::YELLOW);
+        display.drawTextCentered(display.width() / 2, 42, "Press Reset to wake");
       } else {
         display.drawXbm((display.width() - 32) / 2, 18, power_icon, 32, 32);
         display.drawTextCentered(display.width() / 2, 64 - 11, "hibernate:" PRESS_LABEL);
