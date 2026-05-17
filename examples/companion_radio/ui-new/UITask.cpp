@@ -25,6 +25,8 @@
 
 #if UI_HAS_JOYSTICK
   #define PRESS_LABEL "press Enter"
+#elif defined(PIN_BTN_LEFT)
+  #define PRESS_LABEL "press"
 #else
   #define PRESS_LABEL "long press"
 #endif
