@@ -15,10 +15,10 @@ RAK4631Board board;
   #if defined(PIN_USER_BTN_ANA)
   MomentaryButton analog_btn(PIN_USER_BTN_ANA, 1000, 20);
   #elif defined(PIN_BTN_LEFT)
-  MomentaryButton analog_btn(PIN_BTN_LEFT, 1000, true, true);
+  MomentaryButton analog_btn(PIN_BTN_LEFT, 1000, true, true, false);
   #endif
   #if defined(PIN_BTN_RIGHT)
-  MomentaryButton right_btn(PIN_BTN_RIGHT, 1000, true, true);
+  MomentaryButton right_btn(PIN_BTN_RIGHT, 1000, true, true, false);
   #endif
 #endif
 

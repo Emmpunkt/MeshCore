@@ -117,20 +117,20 @@ class HomeScreen : public UIScreen {
 
     // battery icon
     int iconWidth = 24;
-    int iconHeight = 10;
-    int iconX = display.width() - iconWidth - 5; // Position the icon near the top-right corner
-    int iconY = 0;
+    int iconHeight = 8;
+    int iconX = display.width() - iconWidth - 5;
+    int iconY = 2;  // vertically centered on node name text (FreeSans9pt7b ascender ~12px physical)
     display.setColor(DisplayDriver::GREEN);
 
     // battery outline
     display.drawRect(iconX, iconY, iconWidth, iconHeight);
 
-    // battery "cap" — centered: 2px margin top+bottom matches fill inset
-    display.fillRect(iconX + iconWidth, iconY + 2, 3, iconHeight - 4);
+    // battery "cap" — with scale_y=1.8: iconY+1→5px, iconHeight-2=6→10px, 1px margin top+bottom
+    display.fillRect(iconX + iconWidth, iconY + 1, 3, iconHeight - 2);
 
     // fill the battery based on the percentage
     int fillWidth = (batteryPercentage * (iconWidth - 4)) / 100;
-    display.fillRect(iconX + 2, iconY + 2, fillWidth, iconHeight - 4);
+    display.fillRect(iconX + 2, iconY + 1, fillWidth, iconHeight - 2);
 
     // show muted icon if buzzer is muted
 #ifdef PIN_BUZZER
@@ -793,7 +793,7 @@ void UITask::loop() {
         _display->fillRect(p, y, _display->width() - p*2, y);
         _display->setColor(DisplayDriver::LIGHT);  // draw box border
         _display->drawRect(p, y, _display->width() - p*2, y);
-        _display->drawTextCentered(_display->width() / 2, y + p*3, _alert);
+        _display->drawTextCentered(_display->width() / 2, y + p*2, _alert);
         _next_refresh = _alert_expiry;   // will need refresh when alert is dismissed
       } else {
         _next_refresh = millis() + delay_millis;

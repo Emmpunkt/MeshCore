@@ -1,6 +1,9 @@
 #include "MomentaryButton.h"
 
 #define MULTI_CLICK_WINDOW_MS  280
+// Minimum press duration to count as a click. Filters BLE-induced LOW pulses on NFC1-pin
+// (RF coupling on nRF52 pulls pin 9 LOW for ~1-5ms during BLE TX; human presses are ≥50ms).
+#define MIN_CLICK_MS 30
 
 MomentaryButton::MomentaryButton(int8_t pin, int long_press_millis, bool reverse, bool pulldownup, bool multiclick) {
   _pin = pin;
@@ -73,7 +76,8 @@ int MomentaryButton::check(bool repeat_click) {
     } else {
       // button UP
       if (_long_millis > 0) {
-        if (down_at > 0 && (unsigned long)(millis() - down_at) < _long_millis) {  // only a CLICK if still within the long_press millis
+        unsigned long duration = (unsigned long)(millis() - down_at);
+        if (down_at > 0 && duration >= MIN_CLICK_MS && duration < _long_millis) {
             _click_count++;
             _last_click_time = millis();
             _pending_click = true;
