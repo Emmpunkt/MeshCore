@@ -82,6 +82,27 @@ They can also be managed via LoRa in the mobile app by using the Remote Manageme
 
 MeshCore is designed for devices listed in the [MeshCore Flasher](https://meshcore.io/flasher)
 
+## 🔧 Fork-spezifische Änderungen (Emmpunkt/MeshCore)
+
+Dieser Fork enthält folgende Änderungen gegenüber dem Original-Repo:
+
+### E-Ink UI (RAK4631 mit WisBlock E-Ink-Display)
+- Überarbeitetes E-Ink-Display-Layout (Akku-Symmetrie, Popup-Position, Button-Zuverlässigkeit)
+- Unterstützung für 3-Tasten-Layout (`PIN_BTN_RIGHT` / `PIN_BTN_LEFT`)
+- Anzeige einer Hibernate-Meldung bevor das Gerät ausschaltet
+
+### RAK4631 Boot-Fixes (cherry-picked aus upstream `dev`, noch nicht in `main`)
+Diese Fixes beheben Boot-Probleme auf älteren RAK4631-Hardware-Revisionen:
+
+- **Fix RAK4631 boot issue** (`2492397`): 50 ms Wartezeit nach dem ersten Low-Voltage-Messwert vor dem Shutdown, um ADC-Glitches abzufangen. Außerdem LPCOMP-Sicherheitscheck um Deadlock beim USB-Wake zu verhindern. `configureVoltageWake()` gibt jetzt `bool` zurück.
+- **Diag build** (`fcdd982`): Neue Build-Umgebungen `RAK_4631_repeater_diag` und `RAK_4631_repeater_diag_no_dcdc` mit LED-Blink-Diagnose beim Boot (`BOOT_DIAG`) und deaktivierbarem Spannungsschutz (`DISABLE_BOOT_PROTECTION`) sowie DC/DC-Konverter (`DISABLE_DCDC`).
+- **DC/DC-Fix** (`0f123d6`): DC/DC-Konverter wird nur noch aktiviert wenn SoftDevice die Power-Peripherie verwaltet. Ohne SoftDevice (`NRF_POWER->DCDCEN = 1`) kam es auf manchen Boards zu Boot-Fehlern beim Batteriebetrieb.
+
+### GPS (RAK12500 / WisBlock)
+- GPS-Boot-Delay: nach dem Einschalten wird 1,5 s gewartet bevor I2C-Polling startet, um Deadlocks in `Wire_nRF52` bei fehlendem Timeout zu vermeiden.
+
+---
+
 ## 📜 License
 
 MeshCore is open-source software released under the MIT License. You are free to use, modify, and distribute it for personal and commercial projects.
