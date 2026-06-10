@@ -239,6 +239,12 @@ build_room_server_firmwares() {
 
 }
 
+build_fork_firmwares() {
+  build_firmware "Xiao_S3_WIO_repeater"
+  build_firmware "RAK_4631_repeater_diag_no_dcdc"
+  build_firmware "RAK_4631_companion_radio_ble_eink"
+}
+
 build_firmwares() {
   build_companion_firmwares
   build_repeater_firmwares
@@ -275,4 +281,6 @@ elif [[ $1 == "build-repeater-firmwares" ]]; then
   build_repeater_firmwares
 elif [[ $1 == "build-room-server-firmwares" ]]; then
   build_room_server_firmwares
+elif [[ $1 == "build-fork-firmwares" ]]; then
+  build_fork_firmwares
 fi

@@ -1,0 +1,53 @@
+name: Build Fork Firmwares
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'fork-*'
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Clone Repo
+        uses: actions/checkout@v6
+
+      - name: Setup Build Environment
+        uses: ./.github/actions/setup-build-environment
+
+      - name: Build Firmwares
+        env:
+          FIRMWARE_VERSION: ${{ env.GIT_TAG_VERSION }}
+        run: /usr/bin/env bash build.sh build-fork-firmwares
+
+      - name: Upload Workflow Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: fork-firmwares
+          path: out
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v3
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: Fork Firmware ${{ env.GIT_TAG_VERSION }}
+          body: |
+            Fork-spezifische Firmware-Builds (Emmpunkt/MeshCore).
+
+            Enthält:
+            - **Xiao_S3_WIO_repeater** – Repeater mit GPS-Unterstützung
+            - **RAK_4631_repeater_diag_no_dcdc** – RAK4631 Repeater mit Boot-Diagnose, deaktiviertem DC/DC (für ältere Hardware-Revisionen)
+            - **RAK_4631_companion_radio_ble_eink** – RAK4631 Companion Radio mit E-Ink-Display via BLE
+
+            Enthaltene Fixes (cherry-picked aus upstream `dev`):
+            - Fix RAK4631 boot issue (50 ms Delay, LPCOMP-Sicherheitscheck)
+            - diag build (BOOT_DIAG LED-Blink, DISABLE_DCDC/DISABLE_BOOT_PROTECTION Build-Flags)
+            - DC/DC-Konverter nur aktivieren wenn SoftDevice die Power-Peripherie verwaltet
+          draft: true
+          files: out/*
