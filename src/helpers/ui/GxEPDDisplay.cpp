@@ -17,6 +17,18 @@
   static SPIClass displaySPI(NRF_SPIM2, PIN_DISPLAY_MISO, PIN_DISPLAY_SCLK, PIN_DISPLAY_MOSI);
 #endif
 
+// Color scheme
+ColorVal UIColor::window_bkg = GxEPD_WHITE;
+ColorVal UIColor::title_bkg = GxEPD_WHITE;
+ColorVal UIColor::title_txt = GxEPD_BLACK;
+ColorVal UIColor::primary_txt = GxEPD_BLACK;
+ColorVal UIColor::secondary_txt = GxEPD_BLACK;
+ColorVal UIColor::warning_txt = GxEPD_BLACK;
+ColorVal UIColor::popup_bkg = GxEPD_WHITE;
+ColorVal UIColor::popup_txt = GxEPD_BLACK;
+ColorVal UIColor::corp_blue = GxEPD_BLACK;
+
+
 bool GxEPDDisplay::begin() {
   // Only register the SPI bus — do NOT call SPI.begin() or display.init() here.
   // Hardware init is deferred to _doHWInit(), called lazily from startFrame().
@@ -114,10 +126,10 @@ void GxEPDDisplay::clear() {
   display_crc.reset();
 }
 
-void GxEPDDisplay::startFrame(Color bkg) {
+void GxEPDDisplay::startFrame(ColorVal bkg) {
   if (!_hw_init_done) _doHWInit();
-  display.fillScreen(GxEPD_WHITE);
-  display.setTextColor(_curr_color = GxEPD_BLACK);
+  display.fillScreen(bkg);
+  display.setTextColor(_curr_color = UIColor::primary_txt);
   display_crc.reset();
 }
 
@@ -139,14 +151,9 @@ void GxEPDDisplay::setTextSize(int sz) {
   }
 }
 
-void GxEPDDisplay::setColor(Color c) {
-  display_crc.update<Color> (c);
-  // colours need to be inverted for epaper displays
-  if (c == DARK) {
-    display.setTextColor(_curr_color = GxEPD_WHITE);
-  } else {
-    display.setTextColor(_curr_color = GxEPD_BLACK);
-  }
+void GxEPDDisplay::setColor(ColorVal c) {
+  display_crc.update<ColorVal> (c);
+  display.setTextColor(_curr_color = c);
 }
 
 void GxEPDDisplay::setCursor(int x, int y) {

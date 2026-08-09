@@ -811,6 +811,13 @@ void EnvironmentSensorManager::rakGPSInit(){
 
 bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
 
+  #if defined(ETHERNET_ENABLED) && defined(RAK_BOARD)
+    if (ioPin == WB_IO2) {
+      // WB_IO2 powers the Ethernet module on RAK baseboards.
+      return false;
+    }
+  #endif
+
   // Power cycle: drive LOW briefly, then HIGH — keep HIGH throughout the
   // boot-wait so GPS stays powered for all I2C attempts.
   pinMode(ioPin, OUTPUT);
@@ -930,7 +937,7 @@ void EnvironmentSensorManager::stop_gps() {
 void EnvironmentSensorManager::loop() {
 
   #if ENV_INCLUDE_GPS
-  static long next_gps_update = 0;
+  static unsigned long next_gps_update = 0;
   // After start_gps() powers on GPS, activate polling only after the module
   // has had time to fully boot. Wire_nRF52 has no I2C timeout — probing too
   // early risks an infinite spin in endTransmission() if GPS holds the bus
@@ -944,7 +951,9 @@ void EnvironmentSensorManager::loop() {
   }
   #endif
 
-  if (millis() > next_gps_update) {
+  // Rollover-safe comparison (upstream 63731d3f): naive '>' stalls after the
+  // ~24.8-day millis() sign flip.
+  if ((long)(millis() - next_gps_update) > 0) {
 
     if(gps_active){
     // Poll GPS I2C here (1 Hz), NOT every main-loop iteration.

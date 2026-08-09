@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Wire.h>
+#include "nrf_gpio.h"
 
 #include "RAK4631Board.h"
 
@@ -17,6 +18,18 @@ static void diag_blink(uint8_t count) {
 }
 #else
 #define diag_blink(n) ((void)0)
+#endif
+
+#ifdef ETHERNET_ENABLED
+// Drive WB_IO2 HIGH as early as possible using direct register access.
+// WB_IO2 (P1.02, Arduino pin 34) controls the WisBlock slot power switch.
+// With POE through RAK13800, this must be enabled before the framework
+// initializes or the board will brownout from insufficient power delivery.
+// Priority 102 runs just after SystemInit.
+static void __attribute__((constructor(102))) rak4631_early_poe_power() {
+  nrf_gpio_cfg_output(NRF_GPIO_PIN_MAP(1, 2));  // WB_IO2 = P1.02
+  nrf_gpio_pin_set(NRF_GPIO_PIN_MAP(1, 2));
+}
 #endif
 
 #ifdef NRF52_POWER_MANAGEMENT
@@ -67,6 +80,7 @@ void RAK4631Board::begin() {
 #ifdef PIN_USER_BTN_ANA
   pinMode(PIN_USER_BTN_ANA, INPUT_PULLUP);
 #endif
+
 
 #if defined(PIN_BOARD_SDA) && defined(PIN_BOARD_SCL)
   Wire.setPins(PIN_BOARD_SDA, PIN_BOARD_SCL);
