@@ -201,7 +201,11 @@ public:
     display.setColor(UIColor::title_txt);
     char filtered_name[sizeof(_node_prefs->node_name)];
     display.translateUTF8ToBlocks(filtered_name, _node_prefs->node_name, sizeof(filtered_name));
-    display.setCursor(0, 2);
+    // Not upstream's y=2. With scale_y=1.8 and offset_y=10 the baseline lands at
+    // (y+10)*1.8, so the cap height spans ~5..18 physical px at y=0 — about 1.5 px
+    // below the battery box (3.6..18, iconY=2). y=-1 raises it by 1.8 px and lines
+    // the two up. On e-ink the title bar is white-on-white anyway.
+    display.setCursor(0, -1);
     display.print(filtered_name);
 
     // battery voltage
