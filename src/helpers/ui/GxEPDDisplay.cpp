@@ -17,6 +17,10 @@
   static SPIClass displaySPI(NRF_SPIM2, PIN_DISPLAY_MISO, PIN_DISPLAY_SCLK, PIN_DISPLAY_MOSI);
 #endif
 
+#ifndef EPD_WASHING_MACHINE_CYCLES
+  #define EPD_WASHING_MACHINE_CYCLES 0
+#endif
+
 // Color scheme
 ColorVal UIColor::window_bkg = GxEPD_WHITE;
 ColorVal UIColor::title_bkg = GxEPD_WHITE;
@@ -27,7 +31,6 @@ ColorVal UIColor::warning_txt = GxEPD_BLACK;
 ColorVal UIColor::popup_bkg = GxEPD_WHITE;
 ColorVal UIColor::popup_txt = GxEPD_BLACK;
 ColorVal UIColor::corp_blue = GxEPD_BLACK;
-
 
 bool GxEPDDisplay::begin() {
   // Only register the SPI bus — do NOT call SPI.begin() or display.init() here.
@@ -90,7 +93,20 @@ void GxEPDDisplay::_doHWInit() {
   display.init(115200, true, 2, false);
   display.setRotation(DISPLAY_ROTATION);
   setTextSize(1);
+
+  display.setFullWindow();
+
+  for (int i = 0; i < EPD_WASHING_MACHINE_CYCLES; i++) {
+    display.fillScreen(GxEPD_BLACK);
+    display.display(false);
+    delay(2000);
+    display.fillScreen(GxEPD_WHITE);
+    display.display(false);
+    delay(2000);
+  }
+
   display.setPartialWindow(0, 0, display.width(), display.height());
+  resetPartialRefreshCounter();
   display.fillScreen(GxEPD_WHITE);
   display.display(true);
   #if DISP_BACKLIGHT
@@ -98,6 +114,7 @@ void GxEPDDisplay::_doHWInit() {
   pinMode(DISP_BACKLIGHT, OUTPUT);
   #endif
   _hw_init_done = true;
+  _isOn = true;
 }
 
 void GxEPDDisplay::turnOn() {
@@ -108,7 +125,9 @@ void GxEPDDisplay::turnOn() {
 #elif defined(EXP_PIN_BACKLIGHT) && !defined(BACKLIGHT_BTN)
   expander.digitalWrite(EXP_PIN_BACKLIGHT, HIGH);
 #endif
-  _isOn = true;
+  if (!_isOn) {
+    _isOn = true;
+  }
 }
 
 void GxEPDDisplay::turnOff() {
@@ -118,6 +137,14 @@ void GxEPDDisplay::turnOff() {
   expander.digitalWrite(EXP_PIN_BACKLIGHT, LOW);
 #endif
   _isOn = false;
+  if (!_hw_init_done) return;  // panel/SPI never initialised - nothing to clear
+  // do full refresh before powering off to clear screen
+  // no full refresh needed at wakeup
+  display.clearScreen(0xFF); // Clears microcontroller side RAM
+  display.writeScreenBuffer(0xFF); // Forces 0xFF (White) into the display controller's history registers
+  resetPartialRefreshCounter();
+  last_display_crc_value=0;
+  display.hibernate();
 }
 
 void GxEPDDisplay::clear() {
@@ -131,6 +158,16 @@ void GxEPDDisplay::startFrame(ColorVal bkg) {
   display.fillScreen(bkg);
   display.setTextColor(_curr_color = UIColor::primary_txt);
   display_crc.reset();
+  if (_cycles_before_full_refresh != 0) {
+    display.setPartialWindow(0, 0, display.width(), display.height());
+  } else {
+    // forces a full wipe of the screen ...
+    display.clearScreen(0xFF); // Clears microcontroller side RAM
+    display.writeScreenBuffer(0xFF); // Forces 0xFF (White) into the display controller's history registers
+    // we'll need a partial refresh after that (whatever crc value is)
+    last_display_crc_value = 0;
+    resetPartialRefreshCounter();
+  }
 }
 
 void GxEPDDisplay::setTextSize(int sz) {
@@ -232,10 +269,13 @@ uint16_t GxEPDDisplay::getTextWidth(const char* str) {
 }
 
 void GxEPDDisplay::endFrame() {
-  if (!_hw_init_done) return;
+  if (!_hw_init_done || !_isOn) return;
   uint32_t crc = display_crc.finalize();
   if (crc != last_display_crc_value) {
     display.display(true);
-    last_display_crc_value = crc;
+    if (_cycles_before_full_refresh > 0) {
+      _cycles_before_full_refresh--;
+    }
   }
+  last_display_crc_value = crc;
 }
