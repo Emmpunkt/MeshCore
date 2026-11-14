@@ -28,7 +28,7 @@ static char ethernet_command[160];
 #endif
 
 // For power saving
-unsigned long POWERSAVING_FIRSTSLEEP_SECS = 120; // The first sleep (if enabled) from boot
+unsigned long POWERSAVING_FIRSTSLEEP_SECS = 300; // The first sleep (if enabled) from boot
 
 #if defined(PIN_USER_BTN) && defined(_SEEED_SENSECAP_SOLAR_H_)
 static unsigned long userBtnDownAt = 0;
@@ -102,12 +102,24 @@ void setup() {
   ethernet_command[0] = 0;
 #endif
 
+  // PowerSaving variant
+#if ENV_INCLUDE_GPS == 1
+  // Apply PowerSaving profile for GPS
+  if (sensors.getLocationProvider() != NULL) {
+    // GPS on and off duration in seconds
+    sensors.getLocationProvider()->setPowerSavingProfile(the_mesh.getNodePrefs()->powersaving_enabled, 600,
+                                                         86400); // Max 10 minutes, 1 day
+  }
+#endif
+
   sensors.begin();
 
   the_mesh.begin(fs);
 
 #ifdef DISPLAY_CLASS
-  ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION);
+  // PowerSaving variant
+  // Added board for battery display
+  ui_task.begin(the_mesh.getNodePrefs(), FIRMWARE_BUILD_DATE, FIRMWARE_VERSION, &board);
 #endif
 
 #ifdef ETHERNET_ENABLED
@@ -213,5 +225,11 @@ void loop() {
       board.sleep(30); // Sleep. Wake up after a while or when receiving a LoRa packet
     }
 #endif
+  }
+
+  // PowerSaving variant
+  if (the_mesh.getNodePrefs()->reboot_interval > 0 &&
+      the_mesh.millisHasNowPassed(the_mesh.getNodePrefs()->reboot_interval * 3600000)) {
+    board.reboot();
   }
 }

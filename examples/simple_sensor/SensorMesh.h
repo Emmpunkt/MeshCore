@@ -52,6 +52,10 @@ public:
   void begin(FILESYSTEM* fs);
   void loop();
   void handleCommand(ClientInfo* from, uint32_t sender_timestamp, char* command, char* reply);
+  
+  // PowerSaving variant
+  // To check if there is pending work
+  bool hasPendingWork() const;
 
   // CommonCLI callbacks
   const char* getFirmwareVer() override { return FIRMWARE_VERSION; }

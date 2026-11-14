@@ -4,6 +4,8 @@
 #include "AdvertDataHelpers.h"
 #include "TxtDataHelpers.h"
 #include <RTClib.h>
+#define STR_HELPER(x) #x
+#define STR(x) STR_HELPER(x)
 
 #ifndef BRIDGE_MAX_BAUD
 #define BRIDGE_MAX_BAUD 115200
@@ -90,7 +92,9 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
     file.read((uint8_t *)&_prefs->bridge_channel, sizeof(_prefs->bridge_channel));                 // 135
     file.read((uint8_t *)&_prefs->bridge_secret, sizeof(_prefs->bridge_secret));                   // 136
     file.read((uint8_t *)&_prefs->powersaving_enabled, sizeof(_prefs->powersaving_enabled));       // 152
-    file.read(pad, 3);                                                                             // 153
+    // PowerSaving variant
+    file.read((uint8_t *)&_prefs->reboot_interval, sizeof(_prefs->reboot_interval));               // 153
+    file.read(pad, 2);                                                                             // 154
     file.read((uint8_t *)&_prefs->gps_enabled, sizeof(_prefs->gps_enabled));                       // 156
     file.read((uint8_t *)&_prefs->gps_interval, sizeof(_prefs->gps_interval));                     // 157
     file.read((uint8_t *)&_prefs->advert_loc_policy, sizeof (_prefs->advert_loc_policy));          // 161
@@ -127,6 +131,8 @@ void CommonCLI::loadPrefsInt(FILESYSTEM* fs, const char* filename) {  // Legacy 
 
     _prefs->powersaving_enabled = constrain(_prefs->powersaving_enabled, 0, 1);
 
+    // PowerSaving variant
+    _prefs->reboot_interval = constrain(_prefs->reboot_interval, 0, 255);
     _prefs->gps_enabled = constrain(_prefs->gps_enabled, 0, 1);
     _prefs->advert_loc_policy = constrain(_prefs->advert_loc_policy, 0, 2);
 
@@ -348,7 +354,13 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       if (_sensors->setSettingValue("gps", "1")) {
         _prefs->gps_enabled = 1;
         savePrefs();
-        strcpy(reply, "ok");
+
+        // PowerSaving variant
+        if (_prefs->powersaving_enabled) {
+          strcpy(reply, "on (powersaving)");
+        } else { // Normal mode
+          strcpy(reply, "ok");
+        }
       } else {
         strcpy(reply, "gps toggle not found");
       }
@@ -423,14 +435,46 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
         bool enabled = l->isEnabled(); // is EN pin on ?
         bool fix = l->isValid();       // has fix ?
         int sats = l->satellitesCount();
-        bool active = !strcmp(_sensors->getSettingByKey("gps"), "1");
-        if (enabled) {
-          sprintf(reply, "on, %s, %s, %d sats",
-            active?"active":"deactivated",
-            fix?"fix":"no fix",
-            sats);
-        } else {
-          strcpy(reply, "off");
+        // PowerSaving variant
+        bool active = !strcmp(_sensors->getSettingByKey("gps") ?: "0", "1"); // Use "0" if GPS setting is not found
+
+        // PowerSaving variant
+        if (l->isPowerSavingEnabled()) { // GPS Power Saving
+          if(active) {
+            if (enabled) {
+              unsigned long mins = (l->getNextSleep() - millis()) / 60000UL;
+              sprintf(reply, "on, powered (powersaving, sleep in %luh %lum), %s, %d sats", 
+                mins / 60UL, 
+                mins % 60UL,
+                fix ? "fix" : "no fix", 
+                sats);
+            } else {
+              unsigned long mins = (l->getNextWake() - millis()) / 60000UL;
+              sprintf(reply, "on, unpowered (powersaving, wake in %luh %lum)",
+                mins / 60UL,
+                mins % 60UL);
+            }
+
+            // "last sync" from GPS
+            DateTime dt = DateTime(l->getLastValidTimeSync());
+            if (dt.unixtime() == 0) {
+              sprintf(reply + strlen(reply), ", last sync: none");
+            } else {
+              sprintf(reply + strlen(reply), ", last sync: %02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(),
+                      dt.day(), dt.month(), dt.year());
+            }
+          } else {
+            sprintf(reply, "off, %s", enabled ? "powered" : "unpowered");
+          }
+        } else { // Normal mode
+          if(active) {
+            sprintf(reply, "on, %s, %s, %d sats",
+              enabled?"powered":"unpowered",
+              fix?"fix":"no fix",
+              sats);
+          } else {
+            sprintf(reply, "off, %s", enabled ? "powered" : "unpowered");
+          }
         }
       } else {
         strcpy(reply, "Can't find GPS");
@@ -444,7 +488,8 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
 #elif defined(ESP32) && !defined(WITH_BRIDGE)
       _prefs->powersaving_enabled = 1;
       savePrefs();
-      strcpy(reply, "on - After 2 minutes");
+      // PowerSaving variant
+      strcpy(reply, "on - After 5 minutes. Serial console will be off.");
 #elif defined(WITH_BRIDGE)
       strcpy(reply, "Bridge not supported");
 #else
@@ -460,6 +505,37 @@ void CommonCLI::handleCommand(uint32_t sender_timestamp, char* command, char* re
       } else {
         strcpy(reply, "off");
       }
+    // PowerSaving variant
+    } else if (memcmp(command, "sensor", 6) == 0) {
+      // I2C
+#if defined(ENV_PIN_SDA) && defined(ENV_PIN_SCL)
+      sprintf(reply, "I2C Wire1: SDA=%s,SCL=%s\r\n", STR(ENV_PIN_SDA), STR(ENV_PIN_SCL));
+#elif defined(PIN_BOARD_SDA) && defined(PIN_BOARD_SCL)
+      sprintf(reply, "I2C Wire: SDA=%s, SCL=%s\r\n", STR(PIN_BOARD_SDA), STR(PIN_BOARD_SCL));
+#elif defined(PIN_WIRE_SDA) && defined(PIN_WIRE_SCL)
+      sprintf(reply, "I2C Wire: SDA=%s, SCL=%s\r\n", STR(PIN_WIRE_SDA), STR(PIN_WIRE_SCL));
+#else
+      sprintf(reply, "I2C GPIOs not defined\r\n");
+#endif
+
+      // GPS
+#if defined(PIN_GPS_RX) && defined(PIN_GPS_TX)
+      sprintf(reply + strlen(reply), "GPS Serial: RX=%s, TX=%s", STR(PIN_GPS_RX), STR(PIN_GPS_TX));
+#ifdef ENV_INCLUDE_GPS> 0
+      sprintf(reply + strlen(reply), ". Configured");
+#else
+      sprintf(reply + strlen(reply), ". Not configured");
+#endif
+#else
+      sprintf(reply + strlen(reply), "GPS Serial not defined");
+#endif
+    } else if (memcmp(command, "powerlog", 8) == 0) {
+      sprintf(reply, "Last reset reason: %s", _board->getResetReasonString(_board->getResetReason()));
+#if defined(NRF52_PLATFORM)
+      sprintf(reply + strlen(reply), "\r\nLast shutdown reason: %s",
+              _board->getShutdownReasonString(_board->getShutdownReason()));
+      sprintf(reply + strlen(reply), "\r\nLast boot voltage: %u mV", _board->getBootVoltage());
+#endif
     } else if (memcmp(command, "log start", 9) == 0) {
       _callbacks->setLoggingOn(true);
       strcpy(reply, "   logging on");
@@ -692,6 +768,20 @@ void CommonCLI::handleSetCmd(uint32_t sender_timestamp, char* command, char* rep
       }
     }
   #endif
+  // PowerSaving variant
+  } else if (memcmp(config, "reboot.interval ", 16) == 0) {
+    int hours = _atoi(&config[16]);
+    if (hours == 0) {
+      _prefs->reboot_interval = 0;
+      savePrefs();
+      strcpy(reply, "reboot.interval disabled");
+    } else if (hours < 1 || 255 < hours) {
+      strcpy(reply, "Error: interval range is 1-255 hours");
+    } else {
+      _prefs->reboot_interval = hours;
+      savePrefs();
+      sprintf(reply, "OK - reboot.interval set to %d", _prefs->reboot_interval);
+    }
   } else {
     strcpy(reply, "unknown config: ");
     StrHelper::strncpy(&reply[16], config, 160-17);
@@ -828,6 +918,13 @@ void CommonCLI::handleGetCmd(uint32_t sender_timestamp, char* command, char* rep
     } 
     if (tmp == reply) {
       sprintf(reply, "No extra SF configured");
+    }
+  // PowerSaving variant
+  } else if (memcmp(config, "reboot.interval", 15) == 0) {
+    if (_prefs->reboot_interval == 0) {
+      strcpy(reply, "disabled");
+    } else {
+      sprintf(reply, "> %d", (uint8_t)_prefs->reboot_interval);
     }
   } else {
     sprintf(reply, "??: %s", config);

@@ -2,6 +2,9 @@
 #include <Mesh.h>
 #include "MyMesh.h"
 
+// PowerSaving variant
+#include "helpers/PowerSaving.h"
+
 // Believe it or not, this std C function is busted on some platforms!
 static uint32_t _atoi(const char* sp) {
   uint32_t n = 0;
@@ -275,6 +278,16 @@ void setup() {
 #endif
 
   the_mesh.startInterface(interface_manager);
+
+#if ENV_INCLUDE_GPS == 1
+  // Apply PowerSaving profile for GPS
+  if (sensors.getLocationProvider() != NULL) {
+    // GPS on and off duration in seconds
+    sensors.getLocationProvider()->setPowerSavingProfile(the_mesh.getNodePrefs()->powersaving_enabled, 600,
+                                                         1800); // Max 10 minutes, 30 minutes
+  }
+#endif
+
   sensors.begin();
 
 #if ENV_INCLUDE_GPS == 1
@@ -287,6 +300,10 @@ void setup() {
 #endif
 
   board.onBootComplete();
+
+#if defined(ESP32_PLATFORM)
+  PowerSaving::applyCompanionPowerSaving(the_mesh.getNodePrefs()->powersaving_enabled);
+#endif
 }
 
 void loop() {
@@ -302,11 +319,29 @@ void loop() {
   external_watchdog.loop();
 #endif
 
-  if (!the_mesh.hasPendingWork()) {
+  if (the_mesh.getNodePrefs()->powersaving_enabled && !the_mesh.hasPendingWork()) {
 #if defined(NRF52_PLATFORM)
     board.sleep(0); // nrf ignores seconds param, sleeps whenever possible
+#elif defined(ESP32_PLATFORM)
+  #if defined(BLE_PIN_CODE)
+      if (!bluetooth_interface.isReadBusy() && !bluetooth_interface.isWriteBusy()) { // BLE is not busy
+        vTaskDelay(pdMS_TO_TICKS(10));                                               // attempt to sleep
+      }
+  #elif defined(ENABLE_USB_INTERFACE)
+      if(!usb_serial_interface.isReadBusy() && !usb_serial_interface.isWriteBusy()){
+        vTaskDelay(pdMS_TO_TICKS(10)); // attempt to sleep
+      }
+  #endif
 #endif
   }
+
+#if defined(ESP32_PLATFORM)
+  static uint8_t applied_powersaving = the_mesh.getNodePrefs()->powersaving_enabled;
+  if (the_mesh.getNodePrefs()->powersaving_enabled != applied_powersaving) { // changed via CLI
+    applied_powersaving = the_mesh.getNodePrefs()->powersaving_enabled;
+    PowerSaving::applyCompanionPowerSaving(applied_powersaving);
+  }
+#endif
 
 #ifdef ENABLE_WIFI_INTERFACE
   if (wifi_enabled) {

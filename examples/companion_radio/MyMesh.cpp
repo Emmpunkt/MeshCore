@@ -925,7 +925,14 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.tx_power_dbm = LORA_TX_POWER;
   _prefs.gps_enabled = 0;       // GPS disabled by default
   _prefs.gps_interval = 0;      // No automatic GPS updates by default
-  _prefs.radio_fem_rxgain = 1;
+
+// PowerSaving variant
+#ifdef RADIO_FEM_RXGAIN
+  _prefs.radio_fem_rxgain = RADIO_FEM_RXGAIN;
+#else
+  _prefs.radio_fem_rxgain = 0;
+#endif
+
 #ifdef RADIO_FEM_TXGAIN
   _prefs.radio_fem_txgain = RADIO_FEM_TXGAIN;   // board-specific default for PA
 #else
@@ -940,6 +947,15 @@ MyMesh::MyMesh(mesh::Radio &radio, mesh::RNG &rng, mesh::RTCClock &rtc, SimpleMe
   _prefs.rx_boosted_gain = 1; // enabled by default
 #endif
 #endif
+
+  // PowerSaving variant
+  // PowerSaving defaults
+  _prefs.powersaving_enabled = 1;
+
+  // RXPS defaults - Balanced profile
+  _prefs.rxps.enabled = 1;
+  _prefs.rxps.level = 6;
+  _prefs.rxps.preamble = 16;
 }
 
 void MyMesh::begin() {
@@ -1003,6 +1019,10 @@ void MyMesh::begin() {
   _store->loadChannels(this);
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+
+  // PowerSaving variant
+  _prefs.getRadioPrefs()->applyRxPowerSaving(_prefs.sf, _prefs.bw);
+
   radio_driver.setTxPower(_prefs.tx_power_dbm);
   radio_driver.setRxBoostedGainMode(_prefs.rx_boosted_gain);
 
@@ -1448,6 +1468,10 @@ void MyMesh::handleCmdFrame(size_t len) {
       savePrefs();
 
       radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+
+      // PowerSaving variant
+      _prefs.getRadioPrefs()->applyRxPowerSaving(_prefs.sf, _prefs.bw);
+
       MESH_DEBUG_PRINTLN("OK: CMD_SET_RADIO_PARAMS: f=%d, bw=%d, sf=%d, cr=%d", freq, bw, (uint32_t)sf,
                          (uint32_t)cr);
 
@@ -1705,7 +1729,11 @@ void MyMesh::handleCmdFrame(size_t len) {
       telemetry.addTemperature(TELEM_CHANNEL_SELF, temperature); // Built-in MCU Temperature
     }
 
+    // PowerSaving variant
     // query other sensors -- target specific
+    if (sensors.getLocationProvider() != NULL && sensors.getLocationProvider()->isPowerSavingEnabled()) {
+      sensors.getLocationProvider()->syncTime(); // Request for GPS sync if GPS is in PowerSaving
+    }
     sensors.querySensors(0xFF, telemetry);
 
     int i = 0;
@@ -2181,6 +2209,106 @@ bool MyMesh::handleCommand(const char* command, uint32_t sender_timestamp, char*
   }
 #endif
 
+  // PowerSaving variant
+  if (strcmp(command, "powersaving on") == 0 || strcmp(command, "powersaving off") == 0) {
+    _prefs.powersaving_enabled = strcmp(command, "powersaving on") == 0 ? 1 : 0;
+    savePrefs();
+    strcpy(reply, _prefs.powersaving_enabled ? "on" : "off");
+    return true;
+  }
+  if (strcmp(command, "powersaving") == 0) {
+    strcpy(reply, _prefs.powersaving_enabled ? "on" : "off");
+    return true;
+  }
+
+  // PowerSaving variant
+  // To set GPS commands
+#if ENV_INCLUDE_GPS == 1
+  if (strcmp(command, "gps on") == 0) {
+    if (sensors.setSettingValue("gps", "1")) {
+      _prefs.gps_enabled = 1;
+      savePrefs();
+
+      // PowerSaving variant
+      if (_prefs.powersaving_enabled) {
+        strcpy(reply, "on (powersaving)");
+      } else { // Normal mode
+        strcpy(reply, "ok");
+      }
+    } else {
+      strcpy(reply, "gps toggle not found");
+    }
+    return true;
+  }
+  if (strcmp(command, "gps off") == 0) {
+    if (sensors.setSettingValue("gps", "0")) {
+      _prefs.gps_enabled = 0;
+      savePrefs();
+      strcpy(reply, "ok");
+    } else {
+      strcpy(reply, "gps toggle not found");
+    }
+    return true;
+  }
+  if (strcmp(command, "gps sync") == 0) {
+    LocationProvider *l = sensors.getLocationProvider();
+    if (l != NULL) {
+      l->syncTime();
+      strcpy(reply, "ok");
+    } else {
+      strcpy(reply, "gps provider not found");
+    }
+    return true;
+  }
+  if (strcmp(command, "gps") == 0) {
+    LocationProvider *l = sensors.getLocationProvider();
+    if (l != NULL) {
+      bool enabled = l->isEnabled(); // is EN pin on ?
+      bool fix = l->isValid();       // has fix ?
+      int sats = l->satellitesCount();
+      // PowerSaving variant
+      bool active =
+          !strcmp(sensors.getSettingByKey("gps") ?: "0", "1"); // Use "0" if GPS setting is not found
+
+      // PowerSaving variant
+      if (l->isPowerSavingEnabled()) { // GPS Power Saving
+        if (active) {
+          if (enabled) {
+            unsigned long mins = (l->getNextSleep() - millis()) / 60000UL;
+            sprintf(reply, "on, powered (powersaving, sleep in %luh %lum), %s, %d sats", mins / 60UL,
+                    mins % 60UL, fix ? "fix" : "no fix", sats);
+          } else {
+            unsigned long mins = (l->getNextWake() - millis()) / 60000UL;
+            sprintf(reply, "on, unpowered (powersaving, wake in %luh %lum)", mins / 60UL, mins % 60UL);
+          }
+
+          // "last sync" from GPS
+          DateTime dt = DateTime(l->getLastValidTimeSync());
+          if (dt.unixtime() == 0) {
+            sprintf(reply + strlen(reply), ", last sync: none");
+          } else {
+            sprintf(reply + strlen(reply), ", last sync: %02d:%02d - %d/%d/%d UTC", dt.hour(), dt.minute(),
+                    dt.day(), dt.month(), dt.year());
+          }
+        } else {
+          sprintf(reply, "off, %s", enabled ? "powered" : "unpowered");
+        }
+      } else { // Normal mode
+        if (active) {
+          sprintf(reply, "on, %s, %s, %d sats", enabled ? "powered" : "unpowered", fix ? "fix" : "no fix",
+                  sats);
+        } else {
+          sprintf(reply, "off, %s", enabled ? "powered" : "unpowered");
+        }
+      }
+    } else {
+      strcpy(reply, "Can't find GPS");
+    }
+
+    return true;
+  }
+#endif
+
   if (strcmp(command, "board") == 0) {
     strcpy(reply, board.getManufacturerName());
     return true;
@@ -2448,7 +2576,8 @@ bool MyMesh::advert() {
   }
 }
 
+// PowerSaving variant
 // To check if there is pending work
 bool MyMesh::hasPendingWork() const {
-  return _mgr->getOutboundTotal() > 0 || dirty_contacts_expiry != 0;
+  return _mgr->getOutboundTotal() > 0 || dirty_contacts_expiry != 0 || isTransmitting() || _prefs.getRadioPrefs()->isRxPowerSavingCalibrationActive();
 }

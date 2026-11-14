@@ -58,6 +58,8 @@ public:
   char bridge_secret[16]; // for XOR encryption of bridge packets (ESP-NOW only)
   // Power setting
   uint8_t powersaving_enabled = 0; // boolean
+  // PowerSaving variant
+  uint8_t reboot_interval = 0; // hours, 0-255 (default 0=disable)
   // Gps settings
   uint8_t gps_enabled = 0;
   uint32_t gps_interval = 0; // in seconds
@@ -66,6 +68,8 @@ public:
   float adc_multiplier = 0;
   char owner_info[120];
   uint8_t rx_boosted_gain = 0; // power settings
+  // PowerSaving variant
+  RxPowerSavingConfig rxps;
   uint8_t radio_fem_rxgain = 0; // LoRa FEM RX gain setting
   uint8_t radio_fem_txgain = 0; // LoRa FEM TX gain setting
   uint8_t path_hash_mode = 0;   // which path mode to use when sending
@@ -95,9 +99,17 @@ private:
       def("agc_int", _parent->agc_reset_interval);
       def("hash_mode", _parent->path_hash_mode);
       def("multi_ack", _parent->multi_acks);
+      // PowerSaving variant
+      def("rxps_en", _parent->rxps.enabled);
+      def("rxps_rx_us", _parent->rxps.rx_us);
+      def("rxps_sleep_us", _parent->rxps.sleep_us);
+      def("rxps_level", _parent->rxps.level);
+      def("rxps_preamble", _parent->rxps.preamble);
     }
   public:
     RadioPrefs(NodePrefs* parent) : _parent(parent) { }
+    // PowerSaving variant
+    RxPowerSavingConfig* getRxPowerSavingConfig() override { return &_parent->rxps; }
     // CommonRadioPrefs interface
     float getFreq() const override { return _parent->freq; }
     void setFreq(float f) override { _parent->freq = f; markDirty(); }
@@ -171,6 +183,8 @@ private:
     void structure() override {
       def("adc_mult", _parent->adc_multiplier);
       def("pwr_sav_en", _parent->powersaving_enabled);
+      // PowerSaving variant
+      def("pwr_reboot_int", _parent->reboot_interval);
     }
   public:
     PowerPrefs(NodePrefs* parent) : _parent(parent) { }
@@ -226,6 +240,8 @@ protected:
 
 public:
   NodePrefs() : ConfigSerializer(), bridge(this), gps(this), radio(this), power(this), repeat(this), room(this), custom(&radio) {
+	// PowerSaving variant
+    rxps.enabled = 0;
     node_name[0] = 0;
     password[0] = 0;
     guest_password[0] = 0;
@@ -234,6 +250,7 @@ public:
   }
 
   CommonRadioPrefs* getRadioPrefs() { return &radio; }
+  const CommonRadioPrefs* getRadioPrefs() const { return &radio; }
   KeyValueStore* getCustom() { return &custom; }
 
   bool isDirty() const override { return ConfigSerializer::isDirty() || radio.isDirty() || custom.isDirty(); }

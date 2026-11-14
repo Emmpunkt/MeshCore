@@ -29,7 +29,9 @@ static const uint8_t meshcore_logo [] PROGMEM = {
     0xe3, 0xe3, 0x8f, 0xff, 0x1f, 0xfc, 0x3c, 0x0e, 0x1f, 0xf8, 0xff, 0xf8, 0x70, 0x3c, 0x7f, 0xf8, 
 };
 
-void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* firmware_version) {
+// PowerSaving variant
+// Added board for battery display
+void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* firmware_version, mesh::MainBoard* board) {
   _prevBtnState = HIGH;
   _auto_off = millis() + AUTO_OFF_MILLIS;
   _started_at = millis();
@@ -48,8 +50,10 @@ void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* fi
     *dash = 0;
   }
 
+  // PowerSaving variant
   // v1.2.3 (1 Jan 2025)
-  snprintf(_version_info, sizeof(_version_info), "%s (%s)", version, build_date);
+  // snprintf(_version_info, sizeof(_version_info), "%s (%s)", version, build_date);
+  snprintf(_version_info, sizeof(_version_info), "%s", version);
   free(version);
 }
 
@@ -105,6 +109,16 @@ void UITask::renderCurrScreen() {
     // bw / cr
     _display->setCursor(0, 30);
     sprintf(tmp, "BW: %03.2f CR: %d", _node_prefs->bw, _node_prefs->cr);
+    _display->print(tmp);
+
+    // Battery
+    _display->setCursor(0, 40);
+    sprintf(tmp, "BAT: %.2fV", _board->getBattMilliVolts() / 1000.0);
+    _display->print(tmp);
+
+    // PowerSaving
+    _display->setCursor(0, 50);
+    sprintf(tmp, "PowerSaving: %s", _node_prefs->powersaving_enabled? "ON" : "off");
     _display->print(tmp);
   }
 }

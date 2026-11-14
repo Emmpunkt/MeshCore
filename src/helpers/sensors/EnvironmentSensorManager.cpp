@@ -136,6 +136,20 @@ static Adafruit_INA260 INA260;
 static INA226 INA226(TELEM_INA226_ADDRESS, TELEM_WIRE);
 #endif
 
+#if ENV_INCLUDE_INA228
+#ifndef TELEM_INA228_ADDRESS
+#define TELEM_INA228_ADDRESS    0x45      // INA228 single channel current sensor I2C address
+#endif
+#ifndef TELEM_INA228_SHUNT_VALUE
+#define TELEM_INA228_SHUNT_VALUE  0.015   // shunt resistor in ohm
+#endif
+#ifndef TELEM_INA228_MAX_AMP
+#define TELEM_INA228_MAX_AMP      10.0    // expected max current in A
+#endif
+#include <INA228.h>
+static INA228 INA228(TELEM_INA228_ADDRESS, TELEM_WIRE);
+#endif
+
 #if ENV_INCLUDE_MLX90614
 #ifndef TELEM_MLX90614_ADDRESS
 #define TELEM_MLX90614_ADDRESS 0x5A      // MLX90614 IR temperature sensor I2C address
@@ -165,7 +179,11 @@ static RAK12035_SoilMoisture RAK12035;
 #endif
 
 #ifdef RAK_WISBLOCK_GPS
-static uint32_t gpsResetPin = 0;
+// PowerSaving variant
+// -1 = no enable pin; out-of-range values are no-ops in pinMode/digitalWrite,
+// while 0 would be a real GPIO (P0.00 = LFXO crystal on nRF52)
+static uint32_t gpsResetPin = -1;
+
 static bool i2cGPSFlag = false;
 static bool serialGPSFlag = false;
 #ifndef TELEM_RAK12500_ADDRESS
@@ -181,6 +199,9 @@ class RAK12500LocationProvider : public LocationProvider {
   int _sats = 0;
   long _epoch = 0;
   bool _fix = false;
+
+  // PowerSaving variant
+  int _pin_en = -1;
 public:
   long getLatitude() override { return _lat; }
   long getLongitude() override { return _lng; }
@@ -193,18 +214,28 @@ public:
   void begin() override { }
   void stop() override { }
   void loop() override {
-    if (ublox_GNSS.getGnssFixOk(8)) {
-      _fix = true;
-      _lat = ublox_GNSS.getLatitude(2) / 10;
-      _lng = ublox_GNSS.getLongitude(2) / 10;
-      _alt = ublox_GNSS.getAltitude(2);
-      _sats = ublox_GNSS.getSIV(2);
-    } else {
-      _fix = false;
+    // PowerSaving variant
+    static long next_gps_update = 0;
+    if ((int32_t)(millis() - next_gps_update) >= 0) {
+      if (ublox_GNSS.getGnssFixOk(8)) {
+        _fix = true;
+        _lat = ublox_GNSS.getLatitude(2) / 10;
+        _lng = ublox_GNSS.getLongitude(2) / 10;
+        _alt = ublox_GNSS.getAltitude(2);
+        _sats = ublox_GNSS.getSIV(2);
+      } else {
+        _fix = false;
+      }
+      _epoch = ublox_GNSS.getUnixEpoch(2);
+
+      next_gps_update = millis() + 1000;
     }
-    _epoch = ublox_GNSS.getUnixEpoch(2);
   }
   bool isEnabled() override { return true; }
+
+  // PowerSaving variant
+  void setPinEn(int pin_en) override { _pin_en = pin_en; }
+  int getPinEn() override { return _pin_en; }
 };
 
 static RAK12500LocationProvider RAK12500_provider;
@@ -411,6 +442,21 @@ static void query_ina226(uint8_t ch, uint8_t, CayenneLPP& lpp) {
 }
 #endif
 
+#if ENV_INCLUDE_INA228
+static uint8_t init_ina228(TwoWire* wire, uint8_t addr) {
+  // INA228 static instance was constructed with the address; begin() uses it.
+  if(!INA228.begin()) return 0;
+  INA228.setMaxCurrentShunt(TELEM_INA228_MAX_AMP, TELEM_INA228_SHUNT_VALUE);
+  return 1;
+}
+static void query_ina228(uint8_t ch, uint8_t, CayenneLPP& lpp) {
+  lpp.addVoltage(ch, INA228.getBusVoltage());
+  lpp.addCurrent(ch, INA228.getAmpere());
+  lpp.addPower(ch, INA228.getWatt());
+  lpp.addEnergy(ch, INA228.getWattHour());  // unit sent as Wh, telemetry shown in kWh
+}
+#endif
+
 #if ENV_INCLUDE_MLX90614
 static uint8_t init_mlx90614(TwoWire* wire, uint8_t addr) {
   return MLX90614.begin(addr, wire) ? 2 : 0;  // 2 channels: object temp, ambient temp
@@ -596,6 +642,9 @@ static const SensorDef SENSOR_TABLE[] = {
 #if ENV_INCLUDE_INA226
   { TELEM_INA226_ADDRESS,  "INA226",       init_ina226,   query_ina226   },
 #endif
+#if ENV_INCLUDE_INA228
+  { TELEM_INA228_ADDRESS,  "INA228",       init_ina228,   query_ina228   },
+#endif
 #if ENV_INCLUDE_MLX90614
   { TELEM_MLX90614_ADDRESS,"MLX90614",     init_mlx90614, query_mlx90614 },
 #endif
@@ -731,8 +780,12 @@ bool EnvironmentSensorManager::setSettingValue(const char* name, const char* val
   #if ENV_INCLUDE_GPS
   if (gps_detected && strcmp(name, "gps") == 0) {
     if (strcmp(value, "0") == 0) {
+      // PowerSaving variant
+      gps_active = false; // Disabled by CLI or App
       stop_gps();
     } else {
+      // PowerSaving variant
+      gps_active = true; // Enabled by CLI or App
       start_gps();
     }
     return true;
@@ -824,6 +877,8 @@ void EnvironmentSensorManager::rakGPSInit(){
     return;
   }
 
+  _location->setPinEn(gpsResetPin); // PowerSaving: pin that switches the detected GPS slot
+
   #ifndef FORCE_GPS_ALIVE // for use with repeaters, until GPS toggle is implimented
   //Now that GPS is found and set up, set to sleep for initial state
   stop_gps();
@@ -900,7 +955,11 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
 #ifdef PIN_GPS_EN
     if(PIN_GPS_EN){
       gpsResetPin = PIN_GPS_EN;
+    } else {
+      gpsResetPin = ioPin; // WB_IO2
     }
+#else
+    gpsResetPin = ioPin; // WB_IO2
 #endif
     serialGPSFlag = true;
     gps_active = true;
@@ -922,21 +981,29 @@ bool EnvironmentSensorManager::gpsIsAwake(uint8_t ioPin){
 #endif
 
 void EnvironmentSensorManager::start_gps() {
+  // PowerSaving variant
+  if (_location->isPowerSavingEnabled()) {
+    gps_wake = true;           // gps_active is unchanged (true for GPS sleep, false for GPS off)
+    _location->syncTime();     // Clear GPS data and force sync time
+    _location->setNextSleep(); // Next time to off
+  } else {
+     gps_active = true;
+     gps_wake = true;
+  }
+
   #ifdef RAK_WISBLOCK_GPS
-    // Power on GPS. Do NOT set gps_active yet — u-blox I2C interface needs
-    // ~500 ms to initialise after power-on. Wire_nRF52 has no I2C timeout;
-    // calling ublox_GNSS before it is ready hangs the main loop forever.
-    // loop() will probe I2C once _gps_boot_deadline is reached.
+    // Power on GPS. u-blox I2C interface needs ~500 ms to initialise after
+    // power-on. Wire_nRF52 has no I2C timeout; calling ublox_GNSS before it is
+    // ready hangs the main loop forever. loop() only polls I2C once
+    // _gps_boot_deadline has passed.
     #ifndef RAK_3401
     pinMode(gpsResetPin, OUTPUT);
     digitalWrite(gpsResetPin, HIGH);
     pinMode(gpsResetPin, INPUT_PULLUP);
     #endif
-    gps_active = false;
     _gps_boot_deadline = millis() + 1500;
     return;
   #endif
-  gps_active = true;
 
   _location->begin();
   _location->reset();
@@ -947,8 +1014,18 @@ void EnvironmentSensorManager::start_gps() {
 }
 
 void EnvironmentSensorManager::stop_gps() {
-  gps_active = false;
+  // PowerSaving variant
+  if (_location->isPowerSavingEnabled()) {
+    gps_wake = false;          // gps_active is unchanged (true for GPS sleep, false for GPS off)
+    _location->stopTimeSync(); // Stop time sync
+    _location->setNextWake();  // Next time to on
+  } else {
+    gps_active = false;
+    gps_wake = false;
+  }
+
   #ifdef RAK_WISBLOCK_GPS
+    _gps_boot_deadline = 0;  // cancel a pending boot wait
     #ifndef RAK_3401 // rak3401 shouldn't turn off WB_IO2 as it powers the PA
     pinMode(gpsResetPin, OUTPUT);
     digitalWrite(gpsResetPin, LOW);
@@ -968,29 +1045,64 @@ void EnvironmentSensorManager::stop_gps() {
 void EnvironmentSensorManager::loop() {
 
   #if ENV_INCLUDE_GPS
-  static unsigned long next_gps_update = 0;
-  // After start_gps() powers on GPS, activate polling only after the module
-  // has had time to fully boot. Wire_nRF52 has no I2C timeout — probing too
-  // early risks an infinite spin in endTransmission() if GPS holds the bus
-  // during its power-on sequence.
+  static long next_gps_update = 0;
+
   #ifdef RAK_WISBLOCK_GPS
-  if (_gps_boot_deadline > 0 && millis() >= _gps_boot_deadline) {
+  // After start_gps() powers on GPS, poll only after the module has had time
+  // to fully boot. Wire_nRF52 has no I2C timeout - probing too early risks an
+  // infinite spin in endTransmission() if GPS holds the bus during power-on.
+  if (_gps_boot_deadline > 0 && (long)(millis() - _gps_boot_deadline) >= 0) {
     _gps_boot_deadline = 0;
-    gps_active = true;  // GPS has had 1.5 s to boot; start polling
-    next_gps_update = 0; // poll on the very next timer tick
+    next_gps_update = millis(); // poll on the very next timer tick
     MESH_DEBUG_PRINTLN("GPS boot delay done, polling enabled");
+  }
+  bool gps_booting = (_gps_boot_deadline > 0);
+  #else
+  const bool gps_booting = false;
+  #endif
+
+  // PowerSaving variant
+  if (_location->isPowerSavingEnabled() && gps_detected && gps_active) {
+    // Handle change in PowerSaving mode
+    _location->updatePowerSavingSettings(gps_wake);
+
+    if (gps_wake) {
+      // GPS is awake: check whether it should sleep
+      if ((int32_t)(millis() - _location->getNextSleep()) >= 0) {
+        POWERSAVING_DEBUG_PRINTLN("GPS wake timeout. Enter sleep");
+        stop_gps();
+      } else if (!gps_booting && !_location->waitingTimeSync()) {
+        POWERSAVING_DEBUG_PRINTLN("GPS set. Enter sleep early");
+        stop_gps();
+      }
+    } else {
+      // GPS is asleep: check whether it should wake
+      if ((int32_t)(millis() - _location->getNextWake()) >= 0) {
+        POWERSAVING_DEBUG_PRINTLN("GPS sleep timeout. Wakeup.");
+        start_gps();
+      } else if (_location->waitingTimeSync()) {
+        POWERSAVING_DEBUG_PRINTLN("CLI gps sync. Wakeup");
+        start_gps();
+      }
+    }
+  }
+
+  bool gps_on = (!_location->isPowerSavingEnabled() && gps_active) || (_location->isPowerSavingEnabled() && gps_wake);
+
+  #ifndef RAK_WISBLOCK_GPS
+  // Serial NMEA: drain the UART on every loop pass
+  if (gps_on) {
+    _location->loop();
   }
   #endif
 
-  // Rollover-safe comparison (upstream 63731d3f): naive '>' stalls after the
-  // ~24.8-day millis() sign flip.
-  if ((long)(millis() - next_gps_update) > 0) {
-
-    if(gps_active){
+  // PowerSaving variant
+  if ((int32_t)(millis() - next_gps_update) >= 0) {
+    if (gps_on && !gps_booting) {
+    #ifdef RAK_WISBLOCK_GPS
     // Poll GPS I2C here (1 Hz), NOT every main-loop iteration.
     // Wire_nRF52 has no timeout; calling this too often risks blocking if
     // the GPS module ever holds I2C, and wastes bus bandwidth needlessly.
-    #ifdef RAK_WISBLOCK_GPS
     _location->loop();
     if ((i2cGPSFlag || serialGPSFlag) && _location->isValid()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
@@ -1000,7 +1112,6 @@ void EnvironmentSensorManager::loop() {
       MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
     }
     #else
-    _location->loop();
     if (_location->isValid()) {
       node_lat = ((double)_location->getLatitude())/1000000.;
       node_lon = ((double)_location->getLongitude())/1000000.;
@@ -1009,8 +1120,12 @@ void EnvironmentSensorManager::loop() {
       MESH_DEBUG_PRINTLN("lat %f lon %f alt %f", node_lat, node_lon, node_altitude);
     }
     #endif
+
+      // In powersaving mode, GPS is on and off. Only update data when GPS is on
+      if(_location->isPowerSavingEnabled()) next_gps_update = millis() + (gps_update_interval_sec * 1000);
     }
-    next_gps_update = millis() + (gps_update_interval_sec * 1000);
+
+    if(!_location->isPowerSavingEnabled()) next_gps_update = millis() + (gps_update_interval_sec * 1000);
   }
   #endif
   #if ENV_INCLUDE_BME680_BSEC

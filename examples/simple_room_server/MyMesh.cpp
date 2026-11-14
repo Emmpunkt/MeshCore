@@ -681,8 +681,19 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _prefs.rx_boosted_gain = 1; // enabled by default;
 #endif
 #endif
-  _prefs.radio_fem_rxgain = 1;
+
+// PowerSaving variant
+#ifdef RADIO_FEM_RXGAIN
+  _prefs.radio_fem_rxgain = RADIO_FEM_RXGAIN;
+#else
+  _prefs.radio_fem_rxgain = 0;
+#endif
+
+#ifdef RADIO_FEM_TXGAIN
+  _prefs.radio_fem_txgain = RADIO_FEM_TXGAIN;   // board-specific default for PA
+#else
   _prefs.radio_fem_txgain = 0;
+#endif
 
   next_post_idx = 0;
   next_client_idx = 0;
@@ -691,6 +702,15 @@ MyMesh::MyMesh(mesh::MainBoard &board, mesh::Radio &radio, mesh::MillisecondCloc
   _num_posted = _num_post_pushes = 0;
 
   memset(default_scope.key, 0, sizeof(default_scope.key));
+
+  // PowerSaving variant
+  // PowerSaving defaults
+  _prefs.powersaving_enabled = 1;
+
+  // RXPS defaults - Balanced profile
+  _prefs.rxps.enabled = 1;
+  _prefs.rxps.level = 6;
+  _prefs.rxps.preamble = 16;
 }
 
 void MyMesh::begin(FILESYSTEM *fs) {
@@ -723,6 +743,8 @@ void MyMesh::begin(FILESYSTEM *fs) {
   }
 
   radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+  // PowerSaving variant
+  _prefs.getRadioPrefs()->applyRxPowerSaving(_prefs.sf, _prefs.bw);
   radio_driver.setTxPower(_prefs.tx_power_dbm);
   radio_driver.setRxBoostedGainMode(_prefs.rx_boosted_gain);
 
@@ -1057,12 +1079,16 @@ void MyMesh::loop() {
   if (set_radio_at && millisHasNowPassed(set_radio_at)) { // apply pending (temporary) radio params
     set_radio_at = 0;                                     // clear timer
     radio_driver.setParams(pending_freq, pending_bw, pending_sf, pending_cr);
+    // PowerSaving variant
+    _prefs.getRadioPrefs()->applyRxPowerSaving(pending_sf, pending_bw);
     MESH_DEBUG_PRINTLN("Temp radio params");
   }
 
   if (revert_radio_at && millisHasNowPassed(revert_radio_at)) { // revert radio params to orig
     revert_radio_at = 0;                                        // clear timer
     radio_driver.setParams(_prefs.freq, _prefs.bw, _prefs.sf, _prefs.cr);
+    // PowerSaving variant
+    _prefs.getRadioPrefs()->applyRxPowerSaving(_prefs.sf, _prefs.bw);
     MESH_DEBUG_PRINTLN("Radio params restored");
   }
 
@@ -1078,4 +1104,11 @@ void MyMesh::loop() {
   uint32_t now = millis();
   uptime_millis += now - last_millis;
   last_millis = now;
+}
+
+// PowerSaving variant
+// To check if there is pending work
+bool MyMesh::hasPendingWork() const {
+  return _mgr->getOutboundTotal() > 0 || _mgr->getInboundTotal() > 0 ||  // rxdelay packets wait in the inbound queue
+         isTransmitting() || _prefs.getRadioPrefs()->isRxPowerSavingCalibrationActive();
 }

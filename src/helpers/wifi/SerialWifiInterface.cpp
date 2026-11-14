@@ -39,6 +39,11 @@ size_t SerialWifiInterface::writeFrame(const uint8_t src[], size_t len) {
   return 0;
 }
 
+// PowerSaving variant
+bool SerialWifiInterface::isReadBusy() const {
+  return false;
+}
+
 bool SerialWifiInterface::isWriteBusy() const {
   return false;
 }

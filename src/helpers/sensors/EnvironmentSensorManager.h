@@ -19,9 +19,13 @@ protected:
   int          _active_sensor_count = 0;
   uint8_t      next_available_channel = TELEM_CHANNEL_SELF + 1;
 
-  bool gps_detected = false;
-  bool gps_active = false;
-  uint32_t gps_update_interval_sec = 1;  // Default 1 second
+  bool     gps_detected = false;
+  bool     gps_active = false;
+
+  // PowerSaving variant
+  bool     gps_wake = false;  // In PowerSaving, gps_active can have gps_wake true or false
+
+  uint32_t gps_update_interval_sec = 1;
   uint32_t _gps_boot_deadline = 0;  // non-zero: GPS powering on, don't poll I2C yet
 
   #if ENV_INCLUDE_GPS
