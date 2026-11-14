@@ -1,0 +1,1860 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for the open source MeshCore firmware">
+      
+      
+      
+        <link rel="canonical" href="https://meshcore-dev.github.io/meshcore/packet_filter_reference/">
+      
+      
+        <link rel="prev" href="../number_allocations/">
+      
+      
+        <link rel="next" href="../packet_format/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>MeshCore Simple Repeater Packet Filter - MeshCore Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../_stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#meshcore-simple-repeater-packet-filter" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="MeshCore Docs" class="md-header__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            MeshCore Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              MeshCore Simple Repeater Packet Filter
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="MeshCore Docs" class="md-nav__button md-logo" aria-label="MeshCore Docs" data-md-component="logo">
+      
+  <img src="../_assets/meshcore.svg" alt="logo">
+
+    </a>
+    MeshCore Docs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/meshcore-dev/meshcore/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    meshcore-dev/meshcore
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli_commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../companion_protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Companion Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Frequently Asked Questions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../kiss_modem_protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MeshCore KISS Modem Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nrf52_power_management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    nRF52 Power Management
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../number_allocations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Number Allocations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MeshCore Simple Repeater Packet Filter
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MeshCore Simple Repeater Packet Filter
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packet_format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Packet Format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../payloads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Payload Format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qr_codes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QR Codes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../radio_presets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Radio Presets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stats_binary_frames/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stats Binary Frame Structures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../terminal_chat_cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Terminal Chat CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/meshcore-dev/meshcore/edit/main/docs/packet_filter_reference.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="meshcore-simple-repeater-packet-filter">MeshCore Simple Repeater Packet Filter</h1>
+<h2 id="overview">Overview</h2>
+<p>The filter can selectively block forwarded packets based on:</p>
+<ul>
+<li>Hop count</li>
+<li>Per-packet-type rate limits</li>
+<li>Per-origin advert window (each node's advert at most once per N hours)</li>
+<li>Blocked path prefixes (isolate one upstream repeater)</li>
+<li>Minimum path hash size</li>
+<li>Name of a group channel</li>
+<li>Sender name or message text of a group text (block, throttle, or dose)</li>
+<li>Malformed group text messages</li>
+<li>Packet type</li>
+</ul>
+<p>A <strong>dry-run</strong> mode counts every drop but still forwards, so a setting can be
+sized before it is enforced. Every drop also adds the packet's estimated
+time-on-air to a <strong>saved airtime</strong> counter.</p>
+<p>The filter is <strong>disabled by default</strong>.</p>
+<p>Direct-routed packets bypass the filter. Priority packets involving known ACL contacts are also exempt.</p>
+<p>Configuration and statistics are kept apart. Every <code>filter &lt;setting&gt;</code> command
+shows and changes a setting; every <code>filter stats &lt;topic&gt;</code> command reports what
+that setting actually dropped. See <a href="#statistics">Statistics</a>.</p>
+<hr />
+<h1 id="command-overview">Command Overview</h1>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>filter</code></td>
+<td>Status and the drop totals per reason</td>
+</tr>
+<tr>
+<td><code>filter help</code></td>
+<td>List every subcommand</td>
+</tr>
+<tr>
+<td><code>filter on</code> / <code>filter off</code></td>
+<td>Enable or disable filtering</td>
+</tr>
+<tr>
+<td><code>filter reset</code></td>
+<td>Restore all settings to their defaults</td>
+</tr>
+<tr>
+<td><code>filter dryrun</code></td>
+<td>Current dry-run state</td>
+</tr>
+<tr>
+<td><code>filter dryrun on</code> / <code>filter dryrun off</code></td>
+<td>Count drops without dropping (see <a href="#dry-run">Dry-run</a>)</td>
+</tr>
+<tr>
+<td><code>filter types</code></td>
+<td>List the packet type IDs</td>
+</tr>
+<tr>
+<td><code>filter count</code></td>
+<td>Hop and rate drops per packet type</td>
+</tr>
+<tr>
+<td><code>filter hops</code></td>
+<td>Current hop limits</td>
+</tr>
+<tr>
+<td><code>filter hops &lt;type&gt; &lt;max_hops&gt;</code></td>
+<td>Set a hop limit</td>
+</tr>
+<tr>
+<td><code>filter rate</code></td>
+<td>Current rate limits (incl. soft cutoff)</td>
+</tr>
+<tr>
+<td><code>filter rate &lt;type&gt; &lt;limit&gt; &lt;secs&gt; [soft]</code></td>
+<td>Set a rate limit (optional soft cutoff)</td>
+</tr>
+<tr>
+<td><code>filter channel list</code></td>
+<td>Blocked channels</td>
+</tr>
+<tr>
+<td><code>filter channel add</code> / <code>filter channel remove</code></td>
+<td>Block or unblock a channel</td>
+</tr>
+<tr>
+<td><code>filter hash</code></td>
+<td>Current minimum path hash size</td>
+</tr>
+<tr>
+<td><code>filter hash &lt;bytes&gt;</code></td>
+<td>Set the minimum path hash size</td>
+</tr>
+<tr>
+<td><code>filter malformed</code></td>
+<td>Current malformed scan state</td>
+</tr>
+<tr>
+<td><code>filter malformed on</code> / <code>filter malformed off</code></td>
+<td>Enable or disable the malformed scan</td>
+</tr>
+<tr>
+<td><code>filter advert</code></td>
+<td>Current per-origin advert window and cache fill</td>
+</tr>
+<tr>
+<td><code>filter advert &lt;hours&gt;</code></td>
+<td>Set the window (0-720 h; 0 = off)</td>
+</tr>
+<tr>
+<td><code>filter advert clear</code></td>
+<td>Forget every remembered advert origin</td>
+</tr>
+<tr>
+<td><code>filter path list</code></td>
+<td>Blocked path prefixes</td>
+</tr>
+<tr>
+<td><code>filter path add &lt;hex&gt;</code> / <code>filter path remove &lt;hex&gt;</code></td>
+<td>Block or unblock a path prefix</td>
+</tr>
+<tr>
+<td><code>filter sender list</code></td>
+<td>Sender rules, in evaluation order</td>
+</tr>
+<tr>
+<td><code>filter sender add &lt;name&gt; [secs] [prob]</code></td>
+<td>Block, throttle or dose a sender (see <a href="#sender-and-text-rules">Sender and text rules</a>)</td>
+</tr>
+<tr>
+<td><code>filter sender remove &lt;name&gt;</code></td>
+<td>Remove a sender rule</td>
+</tr>
+<tr>
+<td><code>filter text list</code> / <code>filter text add &lt;pattern&gt; [secs] [prob]</code> / <code>filter text remove &lt;pattern&gt;</code></td>
+<td>The same for message text</td>
+</tr>
+<tr>
+<td><code>filter watch list</code></td>
+<td>Channels the rules can read (Public plus the watch list)</td>
+</tr>
+<tr>
+<td><code>filter watch add &lt;#name&gt;</code> / <code>filter watch remove &lt;#name&gt;</code></td>
+<td>Add or remove a channel the rules read</td>
+</tr>
+<tr>
+<td><code>filter age</code></td>
+<td>Current message age limit and its drops</td>
+</tr>
+<tr>
+<td><code>filter age &lt;minutes&gt;</code> / <code>filter age off</code></td>
+<td>Drop group texts stamped more than this far in the past or future (1-10080 min; see <a href="#message-age-limit">Message age limit</a>)</td>
+</tr>
+<tr>
+<td><code>filter stats &lt;topic&gt;</code></td>
+<td>Drops for one topic, in detail</td>
+</tr>
+</tbody>
+</table>
+<p>The same list is available on the device:</p>
+<pre><code class="language-text">filter help
+&gt; filter [ help | on | off | reset | dryrun | types | count | stats | hops | rate | channel | hash | malformed | advert | path | sender | text | watch | age ]
+</code></pre>
+<p>Commands that change a setting reply <code>&gt; Filter: OK</code> unless noted otherwise.</p>
+<hr />
+<h1 id="enabling-the-filter">Enabling the Filter</h1>
+<p>Display the current status:</p>
+<pre><code class="language-text">filter
+&gt; Filter on: Blocked [ Hops: 326 | Rate: 0 | Channel: 0 | Hash: 8097 | Malformed: 0 ]
+</code></pre>
+<p>Enable filtering:</p>
+<pre><code class="language-text">filter on
+&gt; Filter: on
+</code></pre>
+<p>Disable filtering:</p>
+<pre><code class="language-text">filter off
+&gt; Filter: off
+</code></pre>
+<p>Reset all settings to their defaults:</p>
+<pre><code class="language-text">filter reset
+&gt; Filter: preferences reset
+</code></pre>
+<p>This resets the settings, not the counters. Statistics are cleared by
+<code>clear stats</code> and on reboot.</p>
+<h2 id="dry-run">Dry-run</h2>
+<p>Not sure a limit is right? Turn on dry-run: every rule is evaluated and every
+drop is <strong>counted exactly as it would be</strong>, but the packet is still forwarded.</p>
+<pre><code class="language-text">filter dryrun on
+&gt; Filter: dry-run on
+</code></pre>
+<p>While it is on, the status line carries a marker so the counters are not
+mistaken for real drops:</p>
+<pre><code class="language-text">filter
+&gt; Filter on: Blocked [ Hops: 3 | Rate: 12 | Channel: 1 | Hash: 0 | Malformed: 2 ] (dry-run)
+</code></pre>
+<p>Watch <code>filter stats &lt;topic&gt;</code> and <code>filter stats air</code> until the numbers look
+right, then switch it off to enforce:</p>
+<pre><code class="language-text">filter dryrun off
+&gt; Filter: dry-run off
+</code></pre>
+<p>Dry-run is persisted like every other setting, so a repeater left in dry-run
+stays in dry-run across a reboot. Default: <code>off</code>.</p>
+<hr />
+<h1 id="packet-types">Packet Types</h1>
+<p>Display the supported packet types:</p>
+<pre><code class="language-text">filter types
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>00</td>
+<td>REQ</td>
+</tr>
+<tr>
+<td>01</td>
+<td>RESPONSE</td>
+</tr>
+<tr>
+<td>02</td>
+<td>TXT_MSG</td>
+</tr>
+<tr>
+<td>03</td>
+<td>ACK</td>
+</tr>
+<tr>
+<td>04</td>
+<td>ADVERT</td>
+</tr>
+<tr>
+<td>05</td>
+<td>GRP_TXT</td>
+</tr>
+<tr>
+<td>06</td>
+<td>GRP_DATA</td>
+</tr>
+<tr>
+<td>07</td>
+<td>ANON_REQ</td>
+</tr>
+<tr>
+<td>08</td>
+<td>PATH</td>
+</tr>
+<tr>
+<td>09</td>
+<td>TRACE</td>
+</tr>
+<tr>
+<td>10</td>
+<td>MULTIPART</td>
+</tr>
+<tr>
+<td>11</td>
+<td>CONTROL</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h1 id="hop-count-filtering">Hop Count Filtering</h1>
+<p>Display current limits:</p>
+<pre><code class="language-text">filter hops
+[TYPE: MAX_HOPS]
+00: 8
+01: 8
+02: 8
+03: 8
+04: 8
+05: 32
+06: 8
+07: 8
+08: 8
+09: 8
+10: 8
+11: 8
+</code></pre>
+<p>Set the maximum hop count for a packet type:</p>
+<pre><code class="language-text">filter hops &lt;type&gt; &lt;max_hops&gt;
+</code></pre>
+<p>Example:</p>
+<pre><code class="language-text">filter hops 05 16
+&gt; Filter: OK
+</code></pre>
+<p>The drops this limit caused are reported by <code>filter stats hops</code>.</p>
+<p>Default limits:</p>
+<table>
+<thead>
+<tr>
+<th>Packet Type</th>
+<th>Max Hops</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>REQ</td>
+<td>8</td>
+</tr>
+<tr>
+<td>RESPONSE</td>
+<td>8</td>
+</tr>
+<tr>
+<td>TXT_MSG</td>
+<td>8</td>
+</tr>
+<tr>
+<td>ACK</td>
+<td>8</td>
+</tr>
+<tr>
+<td>ADVERT</td>
+<td>8</td>
+</tr>
+<tr>
+<td>GRP_TXT</td>
+<td>32</td>
+</tr>
+<tr>
+<td>GRP_DATA</td>
+<td>8</td>
+</tr>
+<tr>
+<td>ANON_REQ</td>
+<td>8</td>
+</tr>
+<tr>
+<td>PATH</td>
+<td>8</td>
+</tr>
+<tr>
+<td>TRACE</td>
+<td>8</td>
+</tr>
+<tr>
+<td>MULTIPART</td>
+<td>8</td>
+</tr>
+<tr>
+<td>CONTROL</td>
+<td>8</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h1 id="rate-limiting">Rate Limiting</h1>
+<p>Display current configuration:</p>
+<pre><code class="language-text">filter rate
+[TYPE: LIMIT,SECS,SOFT]
+00: 5,60,0
+01: 5,60,0
+02: 20,60,0
+03: 5,60,0
+04: 10,60,0
+05: 20,60,0
+06: 5,60,0
+07: 5,60,0
+08: 5,60,0
+09: 5,60,0
+10: 5,60,0
+11: 5,60,0
+</code></pre>
+<p>The third column is the <strong>soft cutoff</strong> (see below); <code>0</code> means it is off.</p>
+<p>Configure a rate limit:</p>
+<pre><code class="language-text">filter rate &lt;type&gt; &lt;limit&gt; &lt;seconds&gt; [soft]
+</code></pre>
+<p>Example:</p>
+<pre><code class="language-text">filter rate 05 20 60
+&gt; Filter: OK
+</code></pre>
+<p>The drops this limit caused are reported by <code>filter stats rate</code>.</p>
+<p>This allows up to <strong>20 Group Text packets every 60 seconds</strong>.</p>
+<p>Setting the limit to <strong>0</strong> disables rate limiting for that packet type.</p>
+<h2 id="soft-cutoff">Soft cutoff</h2>
+<p>By default a rate limit is a hard cutoff: once a type reaches its limit inside
+the window, every further packet of that type is dropped until the window rolls.
+That closes the door abruptly and takes legitimate traffic down with the abuse.</p>
+<p>The optional <code>[soft]</code> argument turns the drop into a gradual ramp. Below <code>soft</code>
+every packet is forwarded; between <code>soft</code> and the hard <code>limit</code> the forward
+probability falls linearly to zero; at or above <code>limit</code> nothing is forwarded.</p>
+<pre><code class="language-text">filter rate 05 20 60 15
+&gt; Filter: OK
+</code></pre>
+<p>Group Text now forwards normally up to 15 per minute, then tapers off, reaching
+a full stop at 20. <code>soft</code> must be <strong>less than</strong> <code>limit</code>; <code>0</code> (the default) keeps
+the hard cutoff. The setting is per packet type and is stored in <code>/filter_prefs</code>
+like the rest of the rate configuration.</p>
+<p>Default limits:</p>
+<table>
+<thead>
+<tr>
+<th>Packet Type</th>
+<th>Limit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>REQ</td>
+<td>5 / 60 s</td>
+</tr>
+<tr>
+<td>RESPONSE</td>
+<td>5 / 60 s</td>
+</tr>
+<tr>
+<td>TXT_MSG</td>
+<td>20 / 60 s</td>
+</tr>
+<tr>
+<td>ACK</td>
+<td>5 / 60 s</td>
+</tr>
+<tr>
+<td>ADVERT</td>
+<td>10 / 60 s</td>
+</tr>
+<tr>
+<td>GRP_TXT</td>
+<td>20 / 60 s</td>
+</tr>
+<tr>
+<td>GRP_DATA</td>
+<td>5 / 60 s</td>
+</tr>
+<tr>
+<td>ANON_REQ</td>
+<td>5 / 60 s</td>
+</tr>
+<tr>
+<td>PATH</td>
+<td>5 / 60 s</td>
+</tr>
+<tr>
+<td>TRACE</td>
+<td>5 / 60 s</td>
+</tr>
+<tr>
+<td>MULTIPART</td>
+<td>5 / 60 s</td>
+</tr>
+<tr>
+<td>CONTROL</td>
+<td>5 / 60 s</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h1 id="per-origin-advert-window">Per-Origin Advert Window</h1>
+<p>The per-type rate limit caps the <em>total</em> advert budget, so a node that
+re-advertises every few minutes eats the budget and legitimate nodes get
+dropped with it. The advert window works per node instead: <strong>each origin's
+flood advert is forwarded at most once every N hours</strong>. It still passes each
+node's advert once per window, so every node stays reachable through this
+repeater.</p>
+<p>Display the current window:</p>
+<pre><code class="language-text">filter advert
+&gt; Filter: advert origin window 0h (cache 0/256)
+</code></pre>
+<p>Set the window:</p>
+<pre><code class="language-text">filter advert &lt;hours&gt;
+</code></pre>
+<p>Example:</p>
+<pre><code class="language-text">filter advert 48
+&gt; Filter: OK
+</code></pre>
+<p>Each origin is now re-flooded at most once every 48 hours. Allowed values are
+<code>0</code> to <code>720</code> hours (30 days); <code>0</code> turns the window off. Origins are keyed on
+the first 4 bytes of the advert's public key and kept in a 256-entry cache;
+when it fills, the oldest entry is forgotten. The cache lives in RAM, so after
+a reboot every origin gets one free pass.</p>
+<p>Forget every remembered origin without changing the window:</p>
+<pre><code class="language-text">filter advert clear
+&gt; Filter: advert cache cleared
+</code></pre>
+<p>The window runs <em>before</em> the per-type advert rate limit, so a repeat advert
+never consumes the budget of a legitimate one. Drops are reported by
+<code>filter stats advert</code>.</p>
+<p>Default:</p>
+<pre><code class="language-text">0 (off)
+</code></pre>
+<hr />
+<h1 id="blocked-path-prefixes">Blocked Path Prefixes</h1>
+<p>Every flood packet carries the IDs of the repeaters that relayed it. When one
+upstream repeater keeps injecting junk, block its ID prefix and everything that
+travelled through it is dropped here, without needing the key to any channel.</p>
+<p>List the blocked prefixes:</p>
+<pre><code class="language-text">filter path list
+A1B2,C3
+</code></pre>
+<p>With nothing blocked the reply is <code>None</code>.</p>
+<p>Block a prefix:</p>
+<pre><code class="language-text">filter path add &lt;hex&gt;
+</code></pre>
+<p>Example:</p>
+<pre><code class="language-text">filter path add a1b2
+&gt; Filter: path A1B2 added
+</code></pre>
+<p>A prefix is 2 to 8 hex digits (1 to 4 bytes), case-insensitive. Up to
+<strong>8 prefixes</strong> can be blocked. A packet is dropped when <strong>any</strong> entry of its
+path starts with a blocked prefix.</p>
+<p>Unblock a prefix:</p>
+<pre><code class="language-text">filter path remove A1B2
+&gt; Filter: path A1B2 removed
+</code></pre>
+<p>Two things to know:</p>
+<ul>
+<li>A prefix is compared against whole path entries, aligned to the packet's
+  path hash size. <code>A1B2</code> is one 2-byte ID: it matches a 2-byte entry starting
+  <code>A1B2</code>, never the two 1-byte entries <code>A1</code> then <code>B2</code>. A prefix <strong>longer</strong> than
+  the packet's hash size never matches, so to catch a repeater that floods with
+  1-byte hashes, block its 1-byte prefix (<code>A1</code>).</li>
+<li>Short prefixes collide: <code>A1</code> also drops every other repeater whose ID starts
+  with <code>A1</code>. Use the longest prefix the traffic's hash size allows.</li>
+</ul>
+<p>Drops per prefix are reported by <code>filter stats path</code>.</p>
+<hr />
+<h1 id="sender-and-text-rules">Sender and Text Rules</h1>
+<p>Group texts decrypt to <code>SenderName: message text</code>. A sender rule matches the
+name, a text rule matches the message, and each rule either <strong>blocks</strong> every
+match, <strong>throttles</strong> it (one match per N seconds slips past, the rest are
+dropped), or <strong>doses</strong> it (the rule decides only a percentage of its matches).
+This is the tool for one bot flooding a channel you would rather keep: slow it
+down instead of muting the channel.</p>
+<pre><code class="language-text">filter sender add &lt;name&gt; [secs] [prob]
+filter text add &lt;pattern&gt; [secs] [prob]
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td>Sender name, exact and case-sensitive. End it with <code>*</code> for a prefix (<code>Bot*</code> matches <code>Bot1</code>, <code>BotXY</code>); a lone <code>*</code> matches every sender. Up to 15 characters.</td>
+</tr>
+<tr>
+<td><code>pattern</code></td>
+<td>Text to find anywhere in the message, case-sensitive. Start it with <code>^</code> to match only at the beginning. One word, no spaces. Up to 23 characters.</td>
+</tr>
+<tr>
+<td><code>secs</code></td>
+<td><code>0</code> (default) blocks. <code>1</code>–<code>65535</code> throttles: one matching message per that many seconds passes, the excess is dropped.</td>
+</tr>
+<tr>
+<td><code>prob</code></td>
+<td><code>1</code>–<code>100</code> (default <code>100</code>): the share of matches the rule decides. <code>50</code> drops half. <code>0</code> is rejected: remove the rule instead.</td>
+</tr>
+</tbody>
+</table>
+<p>Examples:</p>
+<pre><code class="language-text">filter sender add SpamBot            # drop everything SpamBot says
+filter sender add Bob 60             # Bob gets one message a minute; the rest is dropped
+filter sender add Bot* 0 50          # every Bot… name loses half its messages
+filter text add ^BEACON              # drop messages that start with BEACON
+filter text add RX_in_place 600      # at most one such report per 10 minutes
+filter sender remove Bob
+</code></pre>
+<p>How the rules are applied:</p>
+<ul>
+<li>Sender rules are evaluated top to bottom, then text rules, on every group
+  text the repeater can decrypt. <strong>The first rule that decides drops the
+  packet.</strong> A rule that <em>steps aside</em> (a failed dosing roll, or a throttle pass
+  within budget) leaves the decision to the next rule, so a throttled sender
+  can still be caught by a later catch-all.</li>
+<li>A throttle window is not extended by over-rate messages: a sender pushing
+  hard still gets exactly one pass per window. Throttle state lives in RAM, so
+  the first match after a reboot is a free pass.</li>
+<li>Dosing rolls per received packet with the same random source as the soft
+  cutoff; a retransmitted copy rolls again.</li>
+<li>Only <strong>plain</strong> group texts carry a <code>Sender: text</code> shape. Binary group data,
+  adverts and everything else never match a sender or text rule.</li>
+<li>Up to <strong>8 sender rules</strong> and <strong>8 text rules</strong>. Adding a rule that already
+  exists, or beyond the limit, fails.</li>
+</ul>
+<h2 id="which-channels-the-rules-can-read">Which channels the rules can read</h2>
+<p>The rules only see traffic the repeater can decrypt. <strong>Public</strong> is always
+readable. For a <code>#name</code> channel the key is derived from the name, exactly as
+the companion apps do, so add it to the watch list and it becomes readable too:</p>
+<pre><code class="language-text">filter watch add #bots
+&gt; Filter: watch #bots added
+filter watch list
+Public (11),#bots (a3)
+</code></pre>
+<p>Up to <strong>4</strong> watched channels. Private channels with a shared key cannot be
+watched. A watched channel is <em>read</em>, not blocked; to block one use
+<code>filter channel add</code>. A message on a watched channel is only decrypted when
+at least one sender or text rule exists or the <a href="#message-age-limit">message age limit</a>
+is on, so the watch list costs nothing until you use it.</p>
+<p>Drops per rule are reported by <code>filter stats sender</code> and <code>filter stats text</code>;
+throttle passes are shown alongside.</p>
+<hr />
+<h1 id="channel-blocking">Channel Blocking</h1>
+<p>List blocked channels, with the channel hash byte the filter matches on:</p>
+<pre><code class="language-text">filter channel list
+#bot (a3),#test (5c)
+</code></pre>
+<p>With nothing blocked the reply is <code>None</code>. Drops per channel are reported by
+<code>filter stats channel</code>.</p>
+<p>Add a blocked channel:</p>
+<pre><code class="language-text">filter channel add &lt;channel_name&gt;
+</code></pre>
+<p>Examples:</p>
+<pre><code class="language-text">filter channel add #bot
+&gt; Filter: channel #bot added
+</code></pre>
+<p>Remove a blocked channel:</p>
+<pre><code class="language-text">filter channel remove &lt;channel_name&gt;
+</code></pre>
+<p>Example:</p>
+<pre><code class="language-text">filter channel remove #test
+&gt; Filter: channel #test removed
+</code></pre>
+<p>Up to <strong>16 channels</strong> can be blocked.</p>
+<p>Only <strong>Group Text (GRP_TXT)</strong> packets are affected.</p>
+<hr />
+<h1 id="minimum-path-hash-size">Minimum Path Hash Size</h1>
+<p>Display the current value:</p>
+<pre><code class="language-text">filter hash
+&gt; Filter: minimal 1 bytes path hash size
+</code></pre>
+<p>Configure the minimum path hash size:</p>
+<pre><code class="language-text">filter hash &lt;bytes&gt;
+</code></pre>
+<p>Allowed values:</p>
+<pre><code class="language-text">1
+2
+3
+</code></pre>
+<p>Example:</p>
+<pre><code class="language-text">filter hash 2
+&gt; Filter: OK
+</code></pre>
+<p>Packets containing fewer path hash bytes than configured are discarded.</p>
+<p>Be careful with this one. Nodes flood with 1-byte path hashes by default, so a
+minimum of <code>2</code> discards nearly all flood traffic rather than just the abusive
+part. <code>filter stats hash</code> shows exactly that.</p>
+<p>Default:</p>
+<pre><code class="language-text">1
+</code></pre>
+<hr />
+<h1 id="malformed-group-message-filtering">Malformed Group Message Filtering</h1>
+<p>Display the current setting:</p>
+<pre><code class="language-text">filter malformed
+&gt; Filter: malformed text scan off
+</code></pre>
+<p>Enable validation:</p>
+<pre><code class="language-text">filter malformed on
+&gt; Filter: malformed scan on
+</code></pre>
+<p>Disable validation:</p>
+<pre><code class="language-text">filter malformed off
+&gt; Filter: malformed scan off
+</code></pre>
+<p>When enabled, Group Text packets are checked for:</p>
+<ul>
+<li>Valid timestamp</li>
+<li>Timestamp within ±1 week</li>
+<li>Valid message structure</li>
+<li>Non-empty text</li>
+<li>Valid UTF-8 encoding</li>
+</ul>
+<p>The ±1 week check is skipped while the repeater's clock has not been set (see
+<a href="#message-age-limit">Message age limit</a>); a zero timestamp is always rejected.
+The malformed scan reads the Public channel only.</p>
+<p>Default:</p>
+<pre><code class="language-text">off
+</code></pre>
+<hr />
+<h1 id="message-age-limit">Message Age Limit</h1>
+<p>Drops group texts whose timestamp is more than a set number of minutes away
+from the repeater's clock, in either direction. Old messages that are replayed
+or trickle in late are not repeated again, and neither are messages stamped
+ahead of time (a spammer setting the date days into the future).</p>
+<pre><code class="language-text">filter age 60
+&gt; Filter: OK
+filter age
+&gt; Message age: max 60m, dropped 0
+filter age off
+&gt; Filter: OK
+</code></pre>
+<ul>
+<li>Range <strong>1-10080 minutes</strong> (one week). <code>off</code> or <code>0</code> turns it off. Default: off.</li>
+<li>It checks the time the <strong>sender</strong> put in the message against the repeater's
+  own clock. The same limit applies to stamps in the future: with
+  <code>filter age 60</code> a message stamped more than an hour ahead is dropped too.</li>
+<li>Only channels the repeater can read are checked: <strong>Public</strong>, plus any <code>#</code>
+  channel on the <a href="#which-channels-the-rules-can-read">watch list</a>. Direct
+  messages and other channels are encrypted with keys the repeater does not
+  have, so their age cannot be read and they are never dropped by this.</li>
+<li>It works independently of <code>filter malformed</code>.</li>
+</ul>
+<p><strong>The repeater's clock must be right.</strong> A repeater without a battery-backed
+clock or GPS starts at a default date after a reboot, until it is synced (for
+example with <code>clock sync</code> from a companion app). While the clock reads earlier
+than 2026, the age limit does nothing, and <code>filter age</code> shows
+<code>(clock not set, inactive)</code>. A clock that is set but wrong makes the limit
+wrong in the same way, so check <code>clock</code> before relying on it.</p>
+<p><strong>Choose a margin for other people's clocks.</strong> A phone or node whose clock runs
+behind stamps its messages in the past, one whose clock runs ahead stamps them
+in the future. With a tight limit either kind is dropped. Start generous (for example <code>filter age 60</code>), try it with
+<code>filter dryrun on</code>, and check <code>filter stats age</code> before going lower.</p>
+<hr />
+<h1 id="statistics">Statistics</h1>
+<p>Display filter status:</p>
+<pre><code class="language-text">filter
+&gt; Filter on: Blocked [ Hops: 3 | Rate: 12 | Channel: 1 | Hash: 0 | Malformed: 2 ]
+</code></pre>
+<p>Display per-packet-type statistics:</p>
+<pre><code class="language-text">filter count
+[TYPE: HOPS,RATE]
+00: 0,0
+01: 0,0
+02: 0,0
+03: 0,0
+04: 0,0
+05: 2,10
+06: 0,0
+07: 0,0
+08: 0,0
+09: 0,0
+10: 0,0
+11: 0,0
+</code></pre>
+<p>Meaning:</p>
+<ul>
+<li>Packet Type 05 (Group Text)</li>
+<li>2 packets blocked by hop limit</li>
+<li>10 packets blocked by rate limiting</li>
+</ul>
+<h2 id="per-topic-detail">Per-topic detail</h2>
+<p><code>filter</code> answers <em>how much was dropped</em>; <code>filter stats &lt;topic&gt;</code> answers <em>why,
+and against which setting</em>. Each topic gets its own reply, so it has room for
+detail that would not fit on the summary line.</p>
+<pre><code class="language-text">filter stats
+&gt; filter stats [ hops | rate | channel | hash | malformed | top | advert | path | air | sender | text | age ]
+</code></pre>
+<p>An unknown topic returns that same list.</p>
+<p>Until something has actually been dropped, each topic says so rather than
+printing an empty table:</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Reply when nothing was dropped</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>filter stats hops</code></td>
+<td><code>&gt; Filter: no hop drops recorded</code></td>
+</tr>
+<tr>
+<td><code>filter stats rate</code></td>
+<td><code>&gt; Filter: no rate drops recorded</code></td>
+</tr>
+<tr>
+<td><code>filter stats hash</code></td>
+<td><code>&gt; Filter: no path hash drops recorded</code></td>
+</tr>
+<tr>
+<td><code>filter stats malformed</code></td>
+<td><code>&gt; Filter: no malformed drops recorded</code></td>
+</tr>
+<tr>
+<td><code>filter stats top</code></td>
+<td><code>&gt; Filter: no source drops recorded</code></td>
+</tr>
+<tr>
+<td><code>filter stats channel</code></td>
+<td><code>None</code>, when no channels are blocked</td>
+</tr>
+<tr>
+<td><code>filter stats advert</code></td>
+<td><code>&gt; Filter: advert origin limit off</code>, when the window is 0</td>
+</tr>
+<tr>
+<td><code>filter stats path</code></td>
+<td><code>None</code>, when no prefixes are blocked</td>
+</tr>
+<tr>
+<td><code>filter stats air</code></td>
+<td><code>&gt; Filter: no airtime saved yet</code></td>
+</tr>
+<tr>
+<td><code>filter stats sender</code> / <code>filter stats text</code></td>
+<td><code>None</code>, when no rule is set</td>
+</tr>
+<tr>
+<td><code>filter stats age</code></td>
+<td><code>&gt; Filter: message age limit off</code>, when no limit is set</td>
+</tr>
+</tbody>
+</table>
+<p>The counters live in RAM, so this is also what you see after a reboot or a
+<code>clear stats</code>.</p>
+<h3 id="hops-and-rate">hops and rate</h3>
+<p>Only the packet types that dropped something are listed, with the limit that
+caused it in brackets:</p>
+<pre><code class="language-text">filter stats hops
+[TYPE: DROPS(MAX)]
+04: 326(8)
+05: 8097(32)
+
+filter stats rate
+[TYPE: DROPS(LIMIT/SECS)]
+02: 12(20/60)
+</code></pre>
+<p>Type 05 dropped 8097 packets against a hop limit of 32; type 02 dropped 12
+against a limit of 20 per 60 seconds. That is the whole question — <em>is this
+limit doing work, and is it set right</em> — in one line.</p>
+<h3 id="hash">hash</h3>
+<pre><code class="language-text">filter stats hash
+&gt; Blocked 8097 [1B:8097 2B:0 3B:0]
+  Top types: 04:5012 05:2100 02:985
+</code></pre>
+<p>The split is the path hash size the dropped packets carried. A large <code>1B</code>
+figure against a minimum of 2 means the setting is rejecting ordinary traffic
+rather than abuse — nodes flood with 1-byte path hashes by default.</p>
+<h3 id="channel">channel</h3>
+<pre><code class="language-text">filter stats channel
+#bot (a3): 412,#test (5c): 0
+</code></pre>
+<h3 id="malformed">malformed</h3>
+<pre><code class="language-text">filter stats malformed
+&gt; Blocked 12 [ short:1 time:8 empty:0 utf8:3 ]
+</code></pre>
+<p>The reasons match the checks in order: payload too short, timestamp zero or
+outside the one-week window, plain-text message with no text, and text that is
+not valid UTF-8.</p>
+<h3 id="top">top</h3>
+<pre><code class="language-text">filter stats top
+&gt; Top drops: a3:412 5c:288 11:190
+</code></pre>
+<p>The source identities responsible for the most drops, worst first. The value on
+the left is the 1-byte identity hash, which is all a packet carries, so distinct
+nodes sharing a leading byte are counted together — treat it as a lead, not as
+proof of which node is responsible.</p>
+<p>Sources can only be attributed where the payload carries an identity: adverts,
+and REQ, RESPONSE, TXT_MSG, ANON_REQ and PATH packets. ACK and TRACE hold no
+identity and group traffic is encrypted, so those drops appear only in the
+totals.</p>
+<h3 id="advert">advert</h3>
+<pre><code class="language-text">filter stats advert
+&gt; Advert origins: window 48h, dropped 132, cache 87/256
+</code></pre>
+<p>The window in force, the adverts dropped because their origin had already
+passed inside it, and how many origins the cache currently remembers.</p>
+<h3 id="age">age</h3>
+<pre><code class="language-text">filter stats age
+&gt; Message age: max 60m, dropped 37
+</code></pre>
+<p>The limit in force and the group texts it dropped. While the clock is not set
+the line ends in <code>(clock not set, inactive)</code>.</p>
+<h3 id="path">path</h3>
+<pre><code class="language-text">filter stats path
+A1B2: 412,C3: 0
+</code></pre>
+<p>Drops per blocked prefix, so you can tell which entry is doing the work.</p>
+<h3 id="sender-and-text">sender and text</h3>
+<pre><code class="language-text">filter sender list
+Bob throttle 60s,Bot* block 50%,SpamBot block
+
+filter stats sender
+Bob: 12 (pass 3),Bot*: 40,SpamBot: 5
+</code></pre>
+<p>The setting view shows each rule's mode; the stats view shows the drops it
+caused and, for a throttle, how many messages it let pass within budget.</p>
+<h3 id="air">air</h3>
+<pre><code class="language-text">filter stats air
+&gt; Filter: saved airtime 214500 ms (3m 34s)
+</code></pre>
+<p>The estimated time-on-air the dropped packets would have taken to retransmit,
+using the same estimate the repeater bills its own airtime with. In dry-run it
+is what the drops <em>would</em> have saved. This is usually the number that matters
+on a shared channel.</p>
+<h2 id="limits">Limits</h2>
+<p>Counters saturate rather than wrap, so a busy repeater reports <code>4294967295</code>
+instead of rolling back to a small number. Any reply clipped by the 160-byte
+reply buffer ends in <code>..</code>.</p>
+<p>Statistics are reset together with the repeater statistics.</p>
+<hr />
+<h1 id="persistent-configuration">Persistent Configuration</h1>
+<p>Filter settings are stored in:</p>
+<pre><code class="language-text">/filter_prefs
+</code></pre>
+<p>The following settings persist across reboots:</p>
+<ul>
+<li>Filter enabled/disabled</li>
+<li>Hop limits</li>
+<li>Rate limits</li>
+<li>Blocked channels</li>
+<li>Minimum hash size</li>
+<li>Malformed message filtering</li>
+<li>Dry-run</li>
+<li>Advert window (hours)</li>
+<li>Blocked path prefixes</li>
+<li>Sender rules, text rules and the watch list</li>
+<li>Message age limit</li>
+</ul>
+<p>Files written by older firmware are shorter; the settings they do not contain
+load at their defaults. The advert origin cache is not persisted.</p>
+<hr />
+<h1 id="recommended-configuration">Recommended Configuration</h1>
+<p>In any case, if you want to block the spammer (July 2026), make sure to use the following, which is included in the busy repeater example, but not in the typical repeater.</p>
+<pre><code class="language-text">filter rate 02 5 60
+</code></pre>
+<h2 id="typical-public-repeater">Typical Public Repeater</h2>
+<pre><code class="language-text">filter on
+filter hash 1
+filter malformed on
+filter rate 05 20 60
+filter rate 02 20 60
+filter hops 05 32
+</code></pre>
+<h2 id="busy-or-abused-repeater">Busy or Abused Repeater</h2>
+<pre><code class="language-text">filter on
+filter hash 2
+filter malformed on
+filter rate 05 10 60
+filter rate 02 5 60
+filter rate 04 5 60
+filter advert 24
+filter hops 05 16
+filter hops 02 16
+filter hops 04 8
+</code></pre>
+<p>Take into account that <code>filter hash 2</code> will block (not forward) all "legacy" packets that are not using multibyte paths.</p>
+<h2 id="blocking-a-noisy-channel">Blocking a Noisy Channel</h2>
+<pre><code class="language-text">filter channel add &lt;channel_name&gt;
+</code></pre>
+<p>Monitor the output of:</p>
+<pre><code class="language-text">filter
+filter stats channel
+</code></pre>
+<p>to understand the effect. <code>filter stats channel</code> reports the drops per blocked
+channel, so you can tell which entry is doing the work. Take into account that this will prevent your repeater from forwarding the packet to other repeaters and companions, but it will still receive them.</p>
+<hr />
+<h2 id="slowing-one-sender-down-instead-of-muting-them">Slowing One Sender Down Instead of Muting Them</h2>
+<pre><code class="language-text">filter watch add #test
+filter sender add Bob 60
+filter stats sender          # Bob: &lt;drops&gt; (pass &lt;passes&gt;)
+</code></pre>
+<p>Bob still gets one message a minute through this repeater. Like every sender
+rule this matches the <em>name in the message</em>, not a verified identity: a
+renamed sender evades it.</p>
+<h2 id="isolating-one-upstream-repeater">Isolating One Upstream Repeater</h2>
+<pre><code class="language-text">filter path add &lt;hex prefix&gt;
+</code></pre>
+<p>Monitor <code>filter stats path</code> to confirm the entry is doing the work, and
+remember that a short prefix also catches every other repeater whose ID starts
+the same way.</p>
+<h2 id="sizing-a-setting-before-enforcing-it">Sizing a Setting Before Enforcing It</h2>
+<pre><code class="language-text">filter dryrun on
+... apply the settings you are considering ...
+filter stats air
+filter dryrun off
+</code></pre>
+<p>Nothing is dropped while dry-run is on; the counters show what <em>would</em> be.</p>
+<hr />
+<h1 id="important-notes">Important Notes</h1>
+<ul>
+<li>Filtering is disabled by default. You have to enable it.</li>
+<li>In dry-run every drop is counted but nothing is dropped; the status line ends in <code>(dry-run)</code>.</li>
+<li>Only forwarded packets are filtered.</li>
+<li>Direct-routed packets always bypass the filter.</li>
+<li>Channel blocking only affects <code>GRP_TXT</code> packets.</li>
+<li>Malformed message validation only applies to <code>GRP_TXT</code> packets.</li>
+<li>Rate limits are applied per packet type, not per sender. The advert window is the exception: it is per origin.</li>
+<li>Path prefixes are matched against whole path entries; a prefix longer than the packet's hash size never matches.</li>
+<li>Sender and text rules read only Public and watched <code>#</code> channels, only plain group texts, and match names as text, not verified identities.</li>
+<li>The message age limit reads the same channels and trusts the repeater's clock; it is inactive while that clock is not set.</li>
+<li>Statistics live in RAM only. They are cleared on reboot and by <code>clear stats</code>, and they are never written to <code>/filter_prefs</code>.</li>
+<li>Counters saturate at their maximum rather than wrapping around to zero.</li>
+<li>A reply that does not fit the 160-byte CLI buffer ends in <code>..</code>.</li>
+<li><code>filter &lt;setting&gt;</code> shows and changes a setting; <code>filter stats &lt;topic&gt;</code> reports what it dropped.</li>
+</ul>
+<hr />
+<h1 id="error-replies">Error Replies</h1>
+<table>
+<thead>
+<tr>
+<th>Reply</th>
+<th>Cause</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&gt; Filter: command error</code></td>
+<td>Unrecognised subcommand</td>
+</tr>
+<tr>
+<td><code>&gt; Filter: error &lt;type&gt; range is 0-11</code></td>
+<td>Packet type outside <code>00</code>–<code>11</code></td>
+</tr>
+<tr>
+<td><code>&gt; Filter: error &lt;max_hops&gt; range is 0-64</code></td>
+<td>Hop limit outside <code>0</code>–<code>64</code></td>
+</tr>
+<tr>
+<td><code>&gt; Filter: error hash bytes range is 1-3</code></td>
+<td>Minimum path hash size outside <code>1</code>–<code>3</code></td>
+</tr>
+<tr>
+<td><code>&gt; Filter: error &lt;hours&gt; range is 0-720</code></td>
+<td>Advert window outside <code>0</code>–<code>720</code></td>
+</tr>
+<tr>
+<td><code>&gt; Filter: error &lt;minutes&gt; range is 1-10080, or off</code></td>
+<td>Message age limit out of range or not a number</td>
+</tr>
+<tr>
+<td><code>&gt; Filter: error path prefix is 2-8 hex digits</code></td>
+<td>Path prefix empty, odd-length, longer than 4 bytes, or not hex</td>
+</tr>
+<tr>
+<td><code>&gt; Filter: error &lt;secs&gt; range is 0-65535, &lt;prob&gt; range is 1-100</code></td>
+<td>Sender/text rule argument out of range or not a number</td>
+</tr>
+<tr>
+<td><code>&gt; Filter: error &lt;pattern&gt; max 15 chars</code> / <code>max 23 chars</code></td>
+<td>Sender name or text pattern too long</td>
+</tr>
+<tr>
+<td><code>&gt; Filter: syntax error 'filter dryrun &lt;on \| off&gt;'</code></td>
+<td>Wrong argument</td>
+</tr>
+<tr>
+<td><code>&gt; Filter: syntax error 'filter hops &lt;type&gt; &lt;max_hops&gt;'</code></td>
+<td>Wrong number of arguments</td>
+</tr>
+<tr>
+<td><code>&gt; Filter: syntax error 'filter rate &lt;type&gt; &lt;limit&gt; &lt;secs&gt;'</code></td>
+<td>Wrong number of arguments</td>
+</tr>
+<tr>
+<td><code>&gt; Filter: syntax error 'filter channel [list \| add \| remove] &lt;#name \| Public&gt;'</code></td>
+<td>Wrong number of arguments</td>
+</tr>
+<tr>
+<td><code>Failed</code></td>
+<td><code>filter channel add</code> with the list full, or <code>remove</code> with no such channel; <code>filter path add</code> with the list full or the prefix already blocked, or <code>remove</code> with no such prefix; the same for <code>filter sender</code>, <code>filter text</code> and <code>filter watch</code> (<code>watch add Public</code> also fails: it is always watched)</td>
+</tr>
+</tbody>
+</table>
+<p>An unknown <code>filter stats</code> topic is not an error: it returns the list of topics.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.action.edit", "content.code.copy", "search.highlight", "search.suggest"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

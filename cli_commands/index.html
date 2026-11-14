@@ -901,10 +901,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#view-or-change-this-nodes-power-saving-flag-repeater-only" class="md-nav__link">
+  <a href="#view-or-change-this-nodes-power-saving-flag-repeater-room-server-sensor-and-companion" class="md-nav__link">
     <span class="md-ellipsis">
       
-        View or change this node's power saving flag (Repeater Only)
+        View or change this node's power saving flag (Repeater, room server, sensor and companion)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-set-reboot-interval-repeater-and-room-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or set reboot interval (Repeater and room server)
       
     </span>
   </a>
@@ -1607,6 +1618,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#rx-power-saving-rxps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RX power saving (RXPS)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1770,6 +1792,33 @@
     
   
     Number Allocations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../packet_filter_reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MeshCore Simple Repeater Packet Filter
   
 
     
@@ -2559,10 +2608,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#view-or-change-this-nodes-power-saving-flag-repeater-only" class="md-nav__link">
+  <a href="#view-or-change-this-nodes-power-saving-flag-repeater-room-server-sensor-and-companion" class="md-nav__link">
     <span class="md-ellipsis">
       
-        View or change this node's power saving flag (Repeater Only)
+        View or change this node's power saving flag (Repeater, room server, sensor and companion)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-or-set-reboot-interval-repeater-and-room-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View or set reboot interval (Repeater and room server)
       
     </span>
   </a>
@@ -3265,6 +3325,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#rx-power-saving-rxps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RX power saving (RXPS)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3485,9 +3556,11 @@
 - <code>set radio.fem.rxgain &lt;state&gt;</code></p>
 <p><strong>Parameters:</strong>
 - <code>state</code>: <code>on</code>|<code>off</code></p>
+<p><strong>Default:</strong> <code>off</code> for fresh installs; a build with <code>-D RADIO_FEM_RXGAIN=1</code> defaults to <code>on</code>. A saved setting wins.</p>
 <p><strong>Notes:</strong>
 - This controls the external LoRa FEM receive-path LNA where the board supports it.
-- This is separate from <code>radio.rxgain</code>, which controls the radio chip receive gain mode.</p>
+- This is separate from <code>radio.rxgain</code>, which controls the radio chip receive gain mode.
+- Boards without a controllable LNA answer <code>Error: unsupported</code>.</p>
 <hr />
 <h4 id="view-or-change-the-lora-fem-transmit-path-gain-state-on-supported-boards">View or change the LoRa FEM transmit-path gain state on supported boards</h4>
 <p><strong>Usage:</strong>
@@ -3588,7 +3661,7 @@
 <h4 id="view-this-nodes-configured-role">View this node's configured role</h4>
 <p><strong>Usage:</strong> <code>get role</code></p>
 <hr />
-<h4 id="view-or-change-this-nodes-power-saving-flag-repeater-only">View or change this node's power saving flag (Repeater Only)</h4>
+<h4 id="view-or-change-this-nodes-power-saving-flag-repeater-room-server-sensor-and-companion">View or change this node's power saving flag (Repeater, room server, sensor and companion)</h4>
 <p><strong>Usage:</strong>
 - <code>powersaving</code>
 - <code>powersaving on</code>
@@ -3596,8 +3669,17 @@
 <p><strong>Parameters:</strong> 
 - <code>on</code>: enable power saving
 - <code>off</code>: disable power saving</p>
-<p><strong>Default:</strong> <code>off</code></p>
+<p><strong>Default:</strong> <code>on</code> for fresh installs</p>
 <p><strong>Note:</strong> When enabled, device enters sleep mode between radio transmissions</p>
+<p><strong>Companion:</strong> on ESP32 the flag switches automatic light sleep at once (no reboot). Light sleep stays off on USB-serial, hardware-serial, Ethernet and ESP-NOW builds, and while a WiFi network is configured; those builds still scale the CPU clock (80/40 MHz). ESP32-C6 uses the upstream Arduino 3.x core without power management, so it gets neither. nRF52 companions sleep between events regardless of the flag.</p>
+<hr />
+<h4 id="view-or-set-reboot-interval-repeater-and-room-server">View or set reboot interval (Repeater and room server)</h4>
+<p><strong>Usage:</strong>
+- <code>get reboot.interval</code>
+- <code>set reboot.interval &lt;hours&gt;</code></p>
+<p><strong>Parameters:</strong> 
+- <code>hours</code>: 0-255. 0 is disabled</p>
+<p><strong>Default:</strong> <code>0</code> (disabled)</p>
 <hr />
 <h3 id="routing">Routing</h3>
 <h4 id="view-or-change-this-nodes-repeat-flag">View or change this node's repeat flag</h4>
@@ -4103,6 +4185,17 @@ region save
 - The Ethernet interface obtains an IP address via DHCP automatically on boot.
 - A TCP server listens on port 23 (default) for CLI connections.
 - Connect with any TCP client (e.g. <code>nc</code>, PuTTY) to access the same CLI available over serial.</p>
+<hr />
+<h3 id="rx-power-saving-rxps">RX power saving (RXPS)</h3>
+<p>Repeater, Room Server, Sensor and Companion. SX1262 and LR1110 receive in a duty cycle; LR1121, LR2021 and SX127x stay in continuous RX (<code>supported=no</code>).</p>
+<ul>
+<li><code>get radio.rxps</code>: <code>desired</code> (saved on/off), <code>effective</code> (<code>armed</code> or <code>continuous</code>), <code>supported</code>, <code>err</code> (last error), <code>fail</code> (arm failures), <code>level</code>, <code>catch</code> (preamble symbols still caught), <code>preamble</code>, <code>rx</code>/<code>sleep</code> (µs). <code>erx</code>/<code>eslp</code> appear when the driver had to clamp the periods.</li>
+<li><code>set radio.rxps off|on|conservative|balanced|max|overdrive|riskyWorkingMax</code>: <code>on</code> = <code>conservative</code> = level 3; <code>balanced</code> = level 6; <code>max</code> = level 8; <code>overdrive</code> (9) and <code>riskyWorkingMax</code> (10) run outside the datasheet timing rule.</li>
+<li><code>set radio.rxps level &lt;1-10&gt; [preamble &lt;16|32&gt;]</code>, <code>set radio.rxps max|overdrive|riskyWorkingMax preamble &lt;16|32&gt;</code></li>
+<li><code>set radio.rxps &lt;rx_us&gt; &lt;sleep_us&gt;</code>: manual periods, 1000–30000000 µs, kept across SF/BW changes.</li>
+</ul>
+<p><strong>Default:</strong> Balanced (level 6, preamble 16) for fresh installs. A saved setting, including <code>off</code>, wins.</p>
+<p><strong>Errors:</strong> a profile that does not fit the active SF/BW is rejected, or, after a radio change, leaves the node in continuous RX with <code>err=-10001</code> while the saved choice is kept. Other nonzero <code>err</code> values come from the radio driver; after three failed arm attempts the node stays in continuous RX until the setting changes. <code>set radio</code> takes effect at reboot; until then the windows of the running modulation stay in use.</p>
 <hr />
 
 
